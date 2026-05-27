@@ -91,6 +91,7 @@
     [],
     [],
     [],
+    [],
     [
       [
         "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M",
@@ -110,7 +111,7 @@
                   "i128": "10000000"
                 },
                 {
-                  "u64": "1700000001"
+                  "u64": "1700086401"
                 },
                 {
                   "u32": 100
@@ -267,7 +268,7 @@
               "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M",
               "key": {
                 "ledger_key_nonce": {
-                  "nonce": "8370022561469687789"
+                  "nonce": "6277191135259896685"
                 }
               },
               "durability": "temporary",
@@ -381,7 +382,7 @@
                       "symbol": "due_date"
                     },
                     "val": {
-                      "u64": "1700000001"
+                      "u64": "1700086401"
                     }
                   },
                   {
@@ -496,6 +497,30 @@
                     "address": "CD3FXVGYSLQFFTW3UH6WFF2OKZH7VERGZJZAMJHTGHBWO4F6URWEJL23"
                   }
                 ]
+              }
+            }
+          },
+          "ext": "v0"
+        },
+        "live_until": 4095
+      },
+      {
+        "entry": {
+          "last_modified_ledger_seq": 0,
+          "data": {
+            "contract_data": {
+              "ext": "v0",
+              "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMDR4",
+              "key": {
+                "vec": [
+                  {
+                    "symbol": "TotalInvoices"
+                  }
+                ]
+              },
+              "durability": "persistent",
+              "val": {
+                "u64": "1"
               }
             }
           },
@@ -934,7 +959,7 @@
                     "symbol": "due_date"
                   },
                   "val": {
-                    "u64": "1700000001"
+                    "u64": "1700086401"
                   }
                 },
                 {
@@ -947,6 +972,14 @@
                         "symbol": "Pending"
                       }
                     ]
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "timestamp"
+                  },
+                  "val": {
+                    "u64": "1700000000"
                   }
                 },
                 {
