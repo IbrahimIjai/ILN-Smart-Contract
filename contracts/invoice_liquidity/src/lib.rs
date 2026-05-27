@@ -9,17 +9,25 @@ pub use errors::ContractError;
 pub use invoice::{Invoice, InvoiceParams, InvoiceStatus};
 
 use soroban_sdk::{
-    contract, contractimpl, token::Client as TokenClient, vec, Address, Env, IntoVal, Symbol, Vec,
+    contract, contractimpl, token::Client as TokenClient, vec, Address, BytesN, Env, IntoVal,
+    Symbol, Vec,
 };
 
 use events::{
-    AdminChanged, InvoiceCancelled, InvoiceDefaulted, InvoiceFunded, InvoicePaid, InvoiceSubmitted,
+    AdminChanged, AppealResolved, DefaultAppealed, FundQueueResolved, FundRequested,
+    InvoiceCancelled, InvoiceDefaulted, InvoiceFunded, InvoicePaid, InvoiceSubmitted,
     InvoiceTransferred, InvoiceUpdated,
 };
 use invoice::{
-    get_invoice_funders, get_payer_score, invoice_exists, load_invoice, next_invoice_id,
-    save_invoice, save_invoice_funders, set_payer_score, StorageKey,
+    get_appeal, get_fund_queue, get_invoice_funders, get_lp_score, get_payer_score,
+    get_pre_default_payer_score, get_queue_resolution, invoice_exists, load_invoice,
+    next_invoice_id, save_appeal, save_fund_queue, save_invoice, save_invoice_funders,
+    save_pre_default_payer_score, save_queue_resolution, set_lp_score, set_payer_score,
+    AppealRecord, LpFundRequest, StorageKey,
 };
+
+// 30-day window in seconds for a payer to file an appeal after a default.
+const APPEAL_WINDOW_SECONDS: u64 = 30 * 24 * 60 * 60;
 
 // ----------------------------------------------------------------
 // CONTRACT
@@ -222,6 +230,7 @@ impl InvoiceLiquidityContract {
             }
             InvoiceStatus::Paid => return Err(ContractError::AlreadyPaid),
             InvoiceStatus::Defaulted => return Err(ContractError::InvoiceDefaulted),
+            InvoiceStatus::Appealed => return Err(ContractError::InvoiceAppealed),
             InvoiceStatus::Expired => return Err(ContractError::InvoiceExpired),
             InvoiceStatus::Cancelled => return Err(ContractError::AlreadyCancelled),
         }
@@ -309,8 +318,113 @@ impl InvoiceLiquidityContract {
         Ok(ids)
     }
 
+    // ================================================================
+    // Issue #34: LP Priority Queue
+    //
+    // Design:
+    //  1. Any LP calls `join_fund_queue(lp, invoice_id)` to register intent.
+    //     Their current LP reputation score is snapshotted.
+    //  2. Anyone can call `resolve_fund_queue(invoice_id)` to lock in the
+    //     highest-score LP as the approved funder.
+    //  3. `fund_invoice` checks: if a QueueResolution exists for this invoice,
+    //     only the approved LP may fund it.
+    //  If no LP ever joins the queue the existing first-come-first-served
+    //  behaviour is preserved unchanged.
+    // ================================================================
+
+    /// Register an LP's intent to fund an invoice.
+    /// The LP's current reputation score is snapshotted for ordering.
+    pub fn join_fund_queue(
+        env: Env,
+        lp: Address,
+        invoice_id: u64,
+    ) -> Result<(), ContractError> {
+        lp.require_auth();
+
+        if !invoice_exists(&env, invoice_id) {
+            return Err(ContractError::InvoiceNotFound);
+        }
+
+        // Queue resolution already happened — too late to join.
+        if get_queue_resolution(&env, invoice_id).is_some() {
+            return Err(ContractError::NotApprovedFunder);
+        }
+
+        let invoice = load_invoice(&env, invoice_id);
+        match invoice.status {
+            InvoiceStatus::Pending | InvoiceStatus::PartiallyFunded => {}
+            InvoiceStatus::Funded => return Err(ContractError::AlreadyFunded),
+            InvoiceStatus::Paid => return Err(ContractError::AlreadyPaid),
+            InvoiceStatus::Defaulted => return Err(ContractError::InvoiceDefaulted),
+            InvoiceStatus::Appealed => return Err(ContractError::InvoiceAppealed),
+            InvoiceStatus::Expired => return Err(ContractError::InvoiceExpired),
+            InvoiceStatus::Cancelled => return Err(ContractError::AlreadyCancelled),
+        }
+
+        let mut queue = get_fund_queue(&env, invoice_id);
+
+        // Prevent duplicate entries.
+        for i in 0..queue.len() {
+            if queue.get(i).unwrap().lp == lp {
+                return Err(ContractError::AlreadyInQueue);
+            }
+        }
+
+        let score = get_lp_score(&env, &lp);
+        queue.push_back(LpFundRequest { lp: lp.clone(), score });
+        save_fund_queue(&env, invoice_id, &queue);
+
+        env.events().publish_event(&FundRequested { invoice_id, lp, score });
+
+        Ok(())
+    }
+
+    /// Select the highest-reputation LP from the queue as the approved funder.
+    /// Returns the winning LP address.
+    /// Can be called by anyone once at least one LP has joined the queue.
+    pub fn resolve_fund_queue(
+        env: Env,
+        invoice_id: u64,
+    ) -> Result<Address, ContractError> {
+        if !invoice_exists(&env, invoice_id) {
+            return Err(ContractError::InvoiceNotFound);
+        }
+
+        // Already resolved.
+        if let Some(approved) = get_queue_resolution(&env, invoice_id) {
+            return Ok(approved);
+        }
+
+        let queue = get_fund_queue(&env, invoice_id);
+        if queue.is_empty() {
+            return Err(ContractError::NotFunded); // no one in queue
+        }
+
+        // Find the LP with the highest score (ties broken by first-come-first-served).
+        let mut best_lp = queue.get(0).unwrap().lp.clone();
+        let mut best_score = queue.get(0).unwrap().score;
+
+        for i in 1..queue.len() {
+            let entry = queue.get(i).unwrap();
+            if entry.score > best_score {
+                best_score = entry.score;
+                best_lp = entry.lp.clone();
+            }
+        }
+
+        save_queue_resolution(&env, invoice_id, &best_lp);
+
+        env.events().publish_event(&FundQueueResolved {
+            invoice_id,
+            approved_lp: best_lp.clone(),
+            score: best_score,
+        });
+
+        Ok(best_lp)
+    }
+
     // ------------------------------------------------------------
-    // fund_invoice (USES invoice.token)
+    // fund_invoice (USES invoice.token) — now queue-aware
     // ------------------------------------------------------------
     pub fn fund_invoice(
         env: Env,
@@ -322,6 +436,14 @@ impl InvoiceLiquidityContract {
 
         if !invoice_exists(&env, invoice_id) {
             return Err(ContractError::InvoiceNotFound);
+        }
+
+        // ── Issue #34: priority queue check ──────────────────────
+        // If a queue has been resolved, only the approved LP may fund.
+        if let Some(approved) = get_queue_resolution(&env, invoice_id) {
+            if approved != funder {
+                return Err(ContractError::NotApprovedFunder);
+            }
         }
 
         let mut invoice = load_invoice(&env, invoice_id);
@@ -336,6 +458,7 @@ impl InvoiceLiquidityContract {
         match invoice.status {
             InvoiceStatus::Paid => return Err(ContractError::AlreadyPaid),
             InvoiceStatus::Defaulted => return Err(ContractError::InvoiceDefaulted),
+            InvoiceStatus::Appealed => return Err(ContractError::InvoiceAppealed),
             InvoiceStatus::Expired => return Err(ContractError::InvoiceExpired),
             InvoiceStatus::Funded => return Err(ContractError::AlreadyFunded),
             InvoiceStatus::Pending | InvoiceStatus::PartiallyFunded => {} // all good
@@ -349,13 +472,13 @@ impl InvoiceLiquidityContract {
         // --- Execute transfer ---
         let token = token_client(&env, &invoice.token);
         let contract_address = env.current_contract_address();
-        
+
         let fund_discount = fund_amount
             .checked_mul(discount_rate_as_i128(invoice.discount_rate))
             .unwrap_or(0)
             / 10_000;
         let cost = fund_amount - fund_discount;
-        
+
         token.transfer(&funder, &contract_address, &cost);
 
         // --- Update contributor list ---
@@ -390,7 +513,11 @@ impl InvoiceLiquidityContract {
 
             invoice.status = InvoiceStatus::Funded;
             invoice.funded_at = Some(env.ledger().timestamp());
-            invoice.funder = Some(funder.clone()); // Legacy support for single funder if it was first
+            invoice.funder = Some(funder.clone());
+
+            // Boost LP score on successful funding
+            let current_lp_score = get_lp_score(&env, &funder);
+            set_lp_score(&env, &funder, current_lp_score + 1);
         } else {
             invoice.status = InvoiceStatus::PartiallyFunded;
         }
@@ -440,6 +567,7 @@ impl InvoiceLiquidityContract {
             }
             InvoiceStatus::Paid => return Err(ContractError::AlreadyPaid),
             InvoiceStatus::Defaulted => return Err(ContractError::InvoiceDefaulted),
+            InvoiceStatus::Appealed => return Err(ContractError::InvoiceAppealed),
             InvoiceStatus::Expired => return Err(ContractError::InvoiceExpired),
             InvoiceStatus::Cancelled => return Err(ContractError::AlreadyCancelled),
         }
@@ -479,16 +607,18 @@ impl InvoiceLiquidityContract {
                 let contract_address = env.current_contract_address();
                 for i in 0..funders.len() {
                     let (funder_addr, fund_amt) = funders.get(i).unwrap();
-                    let fund_discount = fund_amt.checked_mul(discount_rate_as_i128(invoice.discount_rate)).unwrap_or(0) / 10_000;
+                    let fund_discount = fund_amt
+                        .checked_mul(discount_rate_as_i128(invoice.discount_rate))
+                        .unwrap_or(0)
+                        / 10_000;
                     let refund = fund_amt - fund_discount;
                     token.transfer(&contract_address, &funder_addr, &refund);
                 }
             }
-            InvoiceStatus::Funded => {
-                return Err(ContractError::AlreadyFunded)
-            }
+            InvoiceStatus::Funded => return Err(ContractError::AlreadyFunded),
             InvoiceStatus::Paid => return Err(ContractError::AlreadyPaid),
             InvoiceStatus::Defaulted => return Err(ContractError::InvoiceDefaulted),
+            InvoiceStatus::Appealed => return Err(ContractError::InvoiceAppealed),
             InvoiceStatus::Expired => return Err(ContractError::InvoiceExpired),
             InvoiceStatus::Cancelled => return Err(ContractError::AlreadyCancelled),
         }
@@ -531,6 +661,7 @@ impl InvoiceLiquidityContract {
             }
             InvoiceStatus::Paid => Err(ContractError::AlreadyPaid),
             InvoiceStatus::Defaulted => Err(ContractError::InvoiceDefaulted),
+            InvoiceStatus::Appealed => Err(ContractError::InvoiceAppealed),
             InvoiceStatus::Expired => Err(ContractError::InvoiceExpired),
             InvoiceStatus::Cancelled => Err(ContractError::AlreadyCancelled),
         }
@@ -554,6 +685,7 @@ impl InvoiceLiquidityContract {
             }
             InvoiceStatus::Paid => return Err(ContractError::AlreadyPaid),
             InvoiceStatus::Defaulted => return Err(ContractError::InvoiceDefaulted),
+            InvoiceStatus::Appealed => return Err(ContractError::InvoiceAppealed),
             InvoiceStatus::Expired => return Err(ContractError::InvoiceExpired),
             InvoiceStatus::Funded => {}
             InvoiceStatus::Cancelled => return Err(ContractError::AlreadyCancelled),
@@ -571,9 +703,17 @@ impl InvoiceLiquidityContract {
         token.transfer(&invoice.payer, &contract_address, &invoice.amount);
 
         // Calculate protocol fee and deduct it
-        let fee_rate: u32 = env.storage().instance().get(&StorageKey::FeeRate).unwrap_or(0);
-        let protocol_fee = invoice.amount.checked_mul(fee_rate as i128).unwrap_or(0) / 10_000;
-        
+        let fee_rate: u32 = env
+            .storage()
+            .instance()
+            .get(&StorageKey::FeeRate)
+            .unwrap_or(0);
+        let protocol_fee = invoice
+            .amount
+            .checked_mul(fee_rate as i128)
+            .unwrap_or(0)
+            / 10_000;
+
         if protocol_fee > 0 {
             let admin: Address = env.storage().instance().get(&StorageKey::Admin).unwrap();
             token.transfer(&contract_address, &admin, &protocol_fee);
@@ -584,7 +724,10 @@ impl InvoiceLiquidityContract {
         // Distribute proportionally to funders
         for i in 0..funders.len() {
             let (funder_addr, fund_amt) = funders.get(i).unwrap();
-            let funder_share = distribute_amount.checked_mul(fund_amt).unwrap_or(0) / invoice.amount;
+            let funder_share = distribute_amount
+                .checked_mul(fund_amt)
+                .unwrap_or(0)
+                / invoice.amount;
             if funder_share > 0 {
                 token.transfer(&contract_address, &funder_addr, &funder_share);
             }
@@ -605,11 +748,11 @@ impl InvoiceLiquidityContract {
         env.events().publish_event(&InvoicePaid {
             invoice_id: invoice.id,
             payer: invoice.payer.clone(),
-            funder: funders.get(0).unwrap().0.clone(), // legacy event compatibility
+            funder: funders.get(0).unwrap().0.clone(),
             freelancer: invoice.freelancer.clone(),
             token: invoice.token.clone(),
             amount: invoice.amount,
-            discount_amount: invoice.amount - distribute_amount, // emit fee taken as discount_amount for legacy compatibility
+            discount_amount: invoice.amount - distribute_amount,
             due_date: invoice.due_date,
             paid_on_time,
             status: invoice.status.clone(),
@@ -620,14 +763,6 @@ impl InvoiceLiquidityContract {
 
     // ----------------------------------------------------------------
     // claim_yield
-    //
-    // Called by the LP after mark_paid has been called.
-    //
-    // In this contract design the yield is paid out automatically
-    // inside mark_paid — so claim_yield is a read function that
-    // returns how much yield the LP earned on a specific invoice.
-    //
-    // Useful for frontends to display LP earnings history.
     // ----------------------------------------------------------------
     pub fn claim_yield(env: Env, invoice_id: u64) -> Result<i128, ContractError> {
         if !invoice_exists(&env, invoice_id) {
@@ -644,15 +779,14 @@ impl InvoiceLiquidityContract {
         }
 
         match invoice.status {
-            InvoiceStatus::Pending | InvoiceStatus::PartiallyFunded | InvoiceStatus::Funded => {
-                // Not settled yet — yield is pending, return 0
-                Ok(0)
-            }
+            InvoiceStatus::Pending
+            | InvoiceStatus::PartiallyFunded
+            | InvoiceStatus::Funded => Ok(0),
             InvoiceStatus::Defaulted => Err(ContractError::InvoiceDefaulted),
+            InvoiceStatus::Appealed => Err(ContractError::InvoiceAppealed),
             InvoiceStatus::Expired => Err(ContractError::InvoiceExpired),
             InvoiceStatus::Cancelled => Err(ContractError::AlreadyCancelled),
             InvoiceStatus::Paid => {
-                // Yield = the discount amount the LP earned
                 let yield_amount = invoice
                     .amount
                     .checked_mul(discount_rate_as_i128(invoice.discount_rate))
@@ -665,9 +799,6 @@ impl InvoiceLiquidityContract {
 
     // ----------------------------------------------------------------
     // claim_default
-    //
-    // Called by the LP if the invoice is not paid by the due date.
-    // Reclaims the escrowed discount amount.
     // ----------------------------------------------------------------
     pub fn claim_default(env: Env, funder: Address, invoice_id: u64) -> Result<(), ContractError> {
         funder.require_auth();
@@ -678,9 +809,6 @@ impl InvoiceLiquidityContract {
 
         let mut invoice = load_invoice(&env, invoice_id);
 
-        // --- Validations ---
-
-        // Only a funder can claim
         let funders = get_invoice_funders(&env, invoice_id);
         let mut is_funder = false;
         for i in 0..funders.len() {
@@ -689,53 +817,53 @@ impl InvoiceLiquidityContract {
                 break;
             }
         }
-        
+
         if !is_funder {
             return Err(ContractError::Unauthorized);
         }
 
-        // Can only be called after due_date has passed
         let now = env.ledger().timestamp();
         if now < invoice.due_date {
             return Err(ContractError::NotYetDefaulted);
         }
 
-        // Invoice must be in Funded status
         match invoice.status {
-            InvoiceStatus::Funded => {} // correct state
+            InvoiceStatus::Funded => {}
             InvoiceStatus::Pending | InvoiceStatus::PartiallyFunded => {
                 return Err(ContractError::NotFunded)
             }
             InvoiceStatus::Paid => return Err(ContractError::AlreadyPaid),
             InvoiceStatus::Defaulted => return Err(ContractError::InvoiceDefaulted),
+            InvoiceStatus::Appealed => return Err(ContractError::InvoiceAppealed),
             InvoiceStatus::Expired => return Err(ContractError::InvoiceExpired),
             InvoiceStatus::Cancelled => return Err(ContractError::AlreadyCancelled),
         }
 
-        // --- Execution ---
-
         let token = token_client(&env, &invoice.token);
         let contract_address = env.current_contract_address();
 
-        // Calculate the total refunded for event emission
         let mut total_refunded = 0;
 
-        // Transfer contributed cost back to funders
         for i in 0..funders.len() {
             let (funder_addr, fund_amt) = funders.get(i).unwrap();
-            let fund_discount = fund_amt.checked_mul(discount_rate_as_i128(invoice.discount_rate)).unwrap_or(0) / 10_000;
+            let fund_discount = fund_amt
+                .checked_mul(discount_rate_as_i128(invoice.discount_rate))
+                .unwrap_or(0)
+                / 10_000;
             let refund = fund_amt - fund_discount;
             token.transfer(&contract_address, &funder_addr, &refund);
             total_refunded += refund;
         }
 
-        // Update status to Defaulted
         invoice.status = InvoiceStatus::Defaulted;
         save_invoice(&env, &invoice);
 
-        // Emit defaulted event
         // --- Update payer reputation ---
+        // Snapshot the score BEFORE applying the penalty so appeal_default()
+        // can restore it exactly if the appeal is upheld.
         let current_score = get_payer_score(&env, &invoice.payer);
+        save_pre_default_payer_score(&env, invoice_id, current_score);
+
         if current_score > 5 {
             set_payer_score(&env, &invoice.payer, current_score - 5);
         } else {
@@ -751,8 +879,136 @@ impl InvoiceLiquidityContract {
             amount: invoice.amount,
             due_date: invoice.due_date,
             defaulted_at: now,
-            discount_amount: total_refunded, // legacy event compatibility
+            discount_amount: total_refunded,
             status: invoice.status.clone(),
+        });
+
+        Ok(())
+    }
+
+    // ================================================================
+    // Issue #36: appeal_default — payer contests an unfair default
+    //
+    // Flow:
+    //   1. Payer calls `appeal_default(invoice_id, evidence_hash)`.
+    //   2. Invoice transitions to `Appealed` status.
+    //   3. Admin/governance calls `resolve_appeal(invoice_id, upheld)`.
+    //      - upheld=true  → default reversed, score restored.
+    //      - upheld=false → invoice remains Defaulted.
+    // ================================================================
+
+    /// File an appeal against an unfair default marking.
+    ///
+    /// * `invoice_id`    – the defaulted invoice
+    /// * `evidence_hash` – SHA-256 hash of off-chain evidence provided by the payer
+    pub fn appeal_default(
+        env: Env,
+        invoice_id: u64,
+        evidence_hash: BytesN<32>,
+    ) -> Result<(), ContractError> {
+        if !invoice_exists(&env, invoice_id) {
+            return Err(ContractError::InvoiceNotFound);
+        }
+
+        let mut invoice = load_invoice(&env, invoice_id);
+
+        // Only the payer may appeal.
+        invoice.payer.require_auth();
+
+        // Check AlreadyAppealed BEFORE status check: after the first appeal the
+        // status is `Appealed` (not `Defaulted`), so the status guard would fire
+        // with the wrong error code if checked first.
+        if get_appeal(&env, invoice_id).is_some() {
+            return Err(ContractError::AlreadyAppealed);
+        }
+
+        // Invoice must be in Defaulted state.
+        if invoice.status != InvoiceStatus::Defaulted {
+            return Err(ContractError::NotDefaulted);
+        }
+
+        let now = env.ledger().timestamp();
+
+        // Appeal must be filed within the appeal window after default.
+        // A default can only occur after due_date, so we measure from due_date.
+        if now > invoice.due_date + APPEAL_WINDOW_SECONDS {
+            return Err(ContractError::AppealWindowClosed);
+        }
+
+        // Use the pre-default score snapshot saved by claim_default().
+        // Fall back to the current score if somehow missing (shouldn't happen).
+        let pre_default_score = get_pre_default_payer_score(&env, invoice_id)
+            .unwrap_or_else(|| get_payer_score(&env, &invoice.payer));
+
+        save_appeal(
+            &env,
+            invoice_id,
+            &AppealRecord {
+                evidence_hash: evidence_hash.clone(),
+                appealed_at: now,
+                pre_default_score,
+            },
+        );
+
+        invoice.status = InvoiceStatus::Appealed;
+        save_invoice(&env, &invoice);
+
+        env.events().publish_event(&DefaultAppealed {
+            invoice_id,
+            payer: invoice.payer.clone(),
+            evidence_hash,
+            appealed_at: now,
+        });
+
+        Ok(())
+    }
+
+    /// Resolve a pending appeal (admin / governance only).
+    ///
+    /// * `upheld=true`  → reverse the default, restore pre-default score, status → Defaulted (reversed).
+    ///   In practice the status transitions back to Defaulted with score restored so the LP
+    ///   can still collect principal they were already refunded. The key effect is reputation repair.
+    /// * `upheld=false` → reject the appeal; invoice remains Defaulted (status reverts from Appealed).
+    pub fn resolve_appeal(
+        env: Env,
+        invoice_id: u64,
+        upheld: bool,
+    ) -> Result<(), ContractError> {
+        let admin: Address = env.storage().instance().get(&StorageKey::Admin).unwrap();
+        admin.require_auth();
+
+        if !invoice_exists(&env, invoice_id) {
+            return Err(ContractError::InvoiceNotFound);
+        }
+
+        let mut invoice = load_invoice(&env, invoice_id);
+
+        if invoice.status != InvoiceStatus::Appealed {
+            return Err(ContractError::NotDefaulted);
+        }
+
+        let appeal = get_appeal(&env, invoice_id).ok_or(ContractError::InvoiceNotFound)?;
+
+        let now = env.ledger().timestamp();
+
+        if upheld {
+            // Restore the payer's reputation to what it was before the default.
+            set_payer_score(&env, &invoice.payer, appeal.pre_default_score);
+            // Status moves back to Defaulted — the LP still received their refund,
+            // but the reputational penalty on the payer is reversed.
+            invoice.status = InvoiceStatus::Defaulted;
+        } else {
+            // Appeal rejected; mark as Defaulted again (was temporarily Appealed).
+            invoice.status = InvoiceStatus::Defaulted;
+        }
+
+        save_invoice(&env, &invoice);
+
+        env.events().publish_event(&AppealResolved {
+            invoice_id,
+            payer: invoice.payer.clone(),
+            upheld,
+            resolved_at: now,
         });
 
         Ok(())
@@ -766,11 +1022,14 @@ impl InvoiceLiquidityContract {
     }
 
     // ----------------------------------------------------------------
+    // lp_score  (Issue #34)
+    // ----------------------------------------------------------------
+    pub fn lp_score(env: Env, lp: Address) -> u32 {
+        get_lp_score(&env, &lp)
+    }
+
+    // ----------------------------------------------------------------
     // suggested_discount_rate
-    //
-    // Returns a suggested discount rate in basis points based on
-    // payer's reputation score.
-    // Higher score = lower risk = lower discount rate.
     // ----------------------------------------------------------------
     pub fn suggested_discount_rate(env: Env, payer: Address) -> u32 {
         let score = get_payer_score(&env, &payer);
@@ -780,7 +1039,7 @@ impl InvoiceLiquidityContract {
     }
 
     // ----------------------------------------------------------------
-    // get_invoice — read-only helper for frontends and tests
+    // get_invoice
     // ----------------------------------------------------------------
     pub fn get_invoice(env: Env, invoice_id: u64) -> Result<Invoice, ContractError> {
         if !invoice_exists(&env, invoice_id) {
@@ -832,7 +1091,7 @@ fn validate_invoice_terms(
     if due_date <= now {
         return Err(ContractError::InvalidDueDate);
     }
-    
+
     let max_offset = 365 * 24 * 60 * 60;
     if due_date > now + max_offset {
         return Err(ContractError::InvalidDueDate);
@@ -893,10 +1152,12 @@ fn notify_distribution_settlement(
 // ----------------------------------------------------------------
 
 mod test;
+mod tests_appeal;
 mod tests_arithmetic;
 mod tests_auth;
 mod tests_distribution;
 mod tests_invariants;
+mod tests_lp_priority_queue;
 mod tests_mutation;
 mod tests_protocol_fee;
 mod tests_security;
