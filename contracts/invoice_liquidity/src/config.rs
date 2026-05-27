@@ -3,7 +3,7 @@ use soroban_sdk::{contracttype, Address, Env};
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
 pub struct Config {
-    pub high_rep_threshold: u8,
+    pub high_rep_threshold: u32,
     pub bonus_bps: u32,
     pub min_discount_rate_bps: u32,
 }
@@ -55,7 +55,7 @@ pub fn set_config(env: &Env, config: &Config) -> Result<(), ConfigError> {
 pub fn update_config(
     env: &Env,
     caller: &Address,
-    high_rep_threshold: u8,
+    high_rep_threshold: u32,
     bonus_bps: u32,
     min_discount_rate_bps: u32,
 ) -> Result<(), ConfigError> {
