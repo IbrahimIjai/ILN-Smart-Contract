@@ -446,6 +446,14 @@
                   },
                   {
                     "key": {
+                      "symbol": "amount_paid"
+                    },
+                    "val": {
+                      "i128": "0"
+                    }
+                  },
+                  {
+                    "key": {
                       "symbol": "discount_rate"
                     },
                     "val": {
@@ -546,7 +554,7 @@
           },
           "ext": "v0"
         },
-        "live_until": 4095
+        "live_until": 2000000
       },
       {
         "entry": {

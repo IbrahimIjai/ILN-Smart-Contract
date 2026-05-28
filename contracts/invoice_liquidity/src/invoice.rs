@@ -22,7 +22,7 @@ pub enum InvoiceStatus {
 // ----------------------------------------------------------------
 
 #[contracttype]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Invoice {
     pub id: u64,
     pub freelancer: Address, // who submitted the invoice (receives liquidity)
@@ -35,7 +35,9 @@ pub struct Invoice {
     pub funder: Option<Address>, // set when an LP funds the invoice (legacy for full funding)
     pub funded_at: Option<u64>,  // ledger timestamp when funding occurred
     pub amount_funded: i128,     // cumulative amount funded so far
+    pub amount_paid: i128,       // cumulative amount paid by the payer so far
 }
+
 
 #[contracttype]
 #[derive(Clone, Debug)]
@@ -196,18 +198,21 @@ pub fn get_payer_score(env: &Env, payer: &Address) -> u32 {
                 let current_ledger = env.ledger().sequence();
                 let ledgers_since_activity = current_ledger.saturating_sub(rep.last_activity_ledger);
                 
-                if ledgers_since_activity >= decay_config.decay_period_ledgers 
+                if u64::from(ledgers_since_activity) >= decay_config.decay_period_ledgers 
                     && decay_config.decay_period_ledgers > 0 
                     && decay_config.decay_rate_bps > 0 
                 {
                     // Calculate number of decay periods that have passed
-                    let periods_passed = ledgers_since_activity / decay_config.decay_period_ledgers;
+                    let periods_passed = u64::from(ledgers_since_activity) / decay_config.decay_period_ledgers;
                     
                     // Apply decay: score = score * (1 - decay_rate/10000)^periods
                     let mut decayed_score = rep.score as u64;
                     for _ in 0..periods_passed {
-                        // Decay: subtract decay_rate_bps basis points
-                        let decay_amount = (decayed_score * decay_config.decay_rate_bps as u64) / 10_000;
+                        // Decay: subtract decay_rate_bps basis points (min 1 point)
+                        let mut decay_amount = (decayed_score * decay_config.decay_rate_bps as u64) / 10_000;
+                        if decay_amount == 0 && decayed_score > 0 {
+                            decay_amount = 1;
+                        }
                         decayed_score = decayed_score.saturating_sub(decay_amount);
                     }
                     

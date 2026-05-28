@@ -113,7 +113,7 @@ fn distribution_hooks_track_lp_freelancer_and_payer() {
     invoice.fund_invoice(&funder, &submitted, &invoice_amount);
     assert_eq!(dist.lp_volume(&funder), invoice_amount);
 
-    invoice.mark_paid(&submitted);
+    invoice.mark_paid(&submitted, &invoice_amount);
 
     assert_eq!(dist.freelancer_settled(&freelancer), 1);
     assert_eq!(dist.payer_on_time(&payer), 1);

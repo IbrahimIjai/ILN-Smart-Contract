@@ -550,6 +550,14 @@
                   },
                   {
                     "key": {
+                      "symbol": "amount_paid"
+                    },
+                    "val": {
+                      "i128": "0"
+                    }
+                  },
+                  {
+                    "key": {
                       "symbol": "discount_rate"
                     },
                     "val": {
@@ -654,7 +662,7 @@
           },
           "ext": "v0"
         },
-        "live_until": 4095
+        "live_until": 2000000
       },
       {
         "entry": {
@@ -1419,6 +1427,14 @@
                 },
                 {
                   "key": {
+                    "symbol": "effective_yield_bps"
+                  },
+                  "val": {
+                    "u32": 24
+                  }
+                },
+                {
+                  "key": {
                     "symbol": "freelancer"
                   },
                   "val": {
@@ -1451,6 +1467,14 @@
                 },
                 {
                   "key": {
+                    "symbol": "lp"
+                  },
+                  "val": {
+                    "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAK3IM"
+                  }
+                },
+                {
+                  "key": {
                     "symbol": "payer"
                   },
                   "val": {
@@ -1467,6 +1491,14 @@
                         "symbol": "Funded"
                       }
                     ]
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "timestamp"
+                  },
+                  "val": {
+                    "u64": "1700000000"
                   }
                 },
                 {

@@ -1978,6 +1978,14 @@
                   },
                   {
                     "key": {
+                      "symbol": "amount_paid"
+                    },
+                    "val": {
+                      "i128": "0"
+                    }
+                  },
+                  {
+                    "key": {
                       "symbol": "discount_rate"
                     },
                     "val": {
@@ -2094,6 +2102,14 @@
                     },
                     "val": {
                       "i128": "1000000000"
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "amount_paid"
+                    },
+                    "val": {
+                      "i128": "0"
                     }
                   },
                   {
@@ -2218,6 +2234,14 @@
                   },
                   {
                     "key": {
+                      "symbol": "amount_paid"
+                    },
+                    "val": {
+                      "i128": "0"
+                    }
+                  },
+                  {
+                    "key": {
                       "symbol": "discount_rate"
                     },
                     "val": {
@@ -2334,6 +2358,14 @@
                     },
                     "val": {
                       "i128": "1000000000"
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "amount_paid"
+                    },
+                    "val": {
+                      "i128": "0"
                     }
                   },
                   {
@@ -2458,6 +2490,14 @@
                   },
                   {
                     "key": {
+                      "symbol": "amount_paid"
+                    },
+                    "val": {
+                      "i128": "0"
+                    }
+                  },
+                  {
+                    "key": {
                       "symbol": "discount_rate"
                     },
                     "val": {
@@ -2574,6 +2614,14 @@
                     },
                     "val": {
                       "i128": "1000000000"
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "amount_paid"
+                    },
+                    "val": {
+                      "i128": "0"
                     }
                   },
                   {
@@ -2698,6 +2746,14 @@
                   },
                   {
                     "key": {
+                      "symbol": "amount_paid"
+                    },
+                    "val": {
+                      "i128": "0"
+                    }
+                  },
+                  {
+                    "key": {
                       "symbol": "discount_rate"
                     },
                     "val": {
@@ -2814,6 +2870,14 @@
                     },
                     "val": {
                       "i128": "1000000000"
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "amount_paid"
+                    },
+                    "val": {
+                      "i128": "0"
                     }
                   },
                   {
@@ -2938,6 +3002,14 @@
                   },
                   {
                     "key": {
+                      "symbol": "amount_paid"
+                    },
+                    "val": {
+                      "i128": "0"
+                    }
+                  },
+                  {
+                    "key": {
                       "symbol": "discount_rate"
                     },
                     "val": {
@@ -3058,6 +3130,14 @@
                   },
                   {
                     "key": {
+                      "symbol": "amount_paid"
+                    },
+                    "val": {
+                      "i128": "0"
+                    }
+                  },
+                  {
+                    "key": {
                       "symbol": "discount_rate"
                     },
                     "val": {
@@ -3162,7 +3242,7 @@
           },
           "ext": "v0"
         },
-        "live_until": 4095
+        "live_until": 2000000
       },
       {
         "entry": {
@@ -3590,7 +3670,24 @@
               },
               "durability": "persistent",
               "val": {
-                "u32": 0
+                "map": [
+                  {
+                    "key": {
+                      "symbol": "last_activity_ledger"
+                    },
+                    "val": {
+                      "u32": 0
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "score"
+                    },
+                    "val": {
+                      "u32": 0
+                    }
+                  }
+                ]
               }
             }
           },
