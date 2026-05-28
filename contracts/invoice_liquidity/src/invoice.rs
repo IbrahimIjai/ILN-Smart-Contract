@@ -36,7 +36,9 @@ pub struct Invoice {
     pub funder: Option<Address>, // set when an LP funds the invoice (legacy for full funding)
     pub funded_at: Option<u64>,  // ledger timestamp when funding occurred
     pub amount_funded: i128,     // cumulative amount funded so far
+    pub amount_paid: i128,       // cumulative amount paid by the payer so far
 }
+
 
 #[contracttype]
 #[derive(Clone, Debug)]
@@ -208,7 +210,7 @@ pub fn get_payer_score(env: &Env, payer: &Address) -> u32 {
     {
         Some(mut rep) => {
             // Apply decay if enough ledgers have passed and config exists
-            if let Ok(decay_config) = crate::config::get_config(env) {
+            if let Some(decay_config) = crate::storage::get_config(env) {
                 let current_ledger = env.ledger().sequence();
                 let ledgers_since_activity = current_ledger.saturating_sub(rep.last_activity_ledger);
                 
@@ -222,8 +224,11 @@ pub fn get_payer_score(env: &Env, payer: &Address) -> u32 {
                     // Apply decay: score = score * (1 - decay_rate/10000)^periods
                     let mut decayed_score = rep.score as u64;
                     for _ in 0..periods_passed {
-                        // Decay: subtract decay_rate_bps basis points
-                        let decay_amount = (decayed_score * decay_config.decay_rate_bps as u64) / 10_000;
+                        // Decay: subtract decay_rate_bps basis points (min 1 point)
+                        let mut decay_amount = (decayed_score * decay_config.decay_rate_bps as u64) / 10_000;
+                        if decay_amount == 0 && decayed_score > 0 {
+                            decay_amount = 1;
+                        }
                         decayed_score = decayed_score.saturating_sub(decay_amount);
                     }
                     

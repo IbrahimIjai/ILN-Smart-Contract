@@ -21,27 +21,17 @@ use soroban_sdk::{
 };
 
 use events::{
-    AdminChanged, AppealResolved, ContractPaused, ContractUnpaused, DefaultAppealed,
-    DisputeResolved, FundQueueResolved, FundRequested, InvoiceCancelled, InvoiceDefaulted,
-    InvoiceDisputed, InvoiceFunded, InvoicePaid, InvoiceSubmitted, InvoiceTransferred,
-    InvoiceUpdated,
+    AdminChanged, AppealResolved, ContractPaused, ContractUnpaused, DefaultAppealed, DisputeResolved, FundQueueResolved, FundRequested,
+    InvoiceCancelled, InvoiceDefaulted, InvoiceDisputed, InvoiceFunded, InvoicePaid, InvoicePartiallyPaid, InvoiceSubmitted,
+    InvoiceTransferred, InvoiceUpdated,
 };
-<<<<<<< fix/storage-key-namespacing
-use crate::storage::{
-    get_appeal, get_fund_queue, get_invoice_funders, get_lp_score, get_payer_score,
-    get_pre_default_payer_score, get_queue_resolution, invoice_exists, load_invoice,
-    next_invoice_id, save_appeal, save_fund_queue, save_invoice, save_invoice_funders,
-    save_pre_default_payer_score, save_queue_resolution, set_lp_score, set_payer_score,
-=======
 use invoice::{
-    add_volume, get_appeal, get_contract_stats, get_dispute, get_fund_queue, get_invoice_funders,
-    get_lp_score, get_payer_score, get_pre_default_payer_score, get_queue_resolution,
-    increment_total_funded, increment_total_invoices, increment_total_paid, invoice_exists,
-    is_paused, load_invoice, next_invoice_id, save_appeal, save_dispute, save_fund_queue,
-    save_invoice, save_invoice_funders, save_pre_default_payer_score, save_queue_resolution,
-    set_lp_score, set_paused, set_payer_score, AppealRecord, ContractStats, DisputeRecord,
-    LpFundRequest, StorageKey,
->>>>>>> main
+    add_volume, get_appeal, get_contract_stats, get_dispute, get_fund_queue, get_invoice_funders, get_lp_score,
+    get_payer_score, get_pre_default_payer_score, get_queue_resolution, increment_total_funded,
+    increment_total_invoices, increment_total_paid, invoice_exists, is_paused, load_invoice,
+    next_invoice_id, save_appeal, save_dispute, save_fund_queue, save_invoice, save_invoice_funders,
+    save_pre_default_payer_score, save_queue_resolution, set_lp_score, set_paused, set_payer_score,
+    ContractStats, DisputeRecord, StorageKey,
 };
 // 30-day window in seconds for a payer to file an appeal after a default.
 const APPEAL_WINDOW_SECONDS: u64 = 30 * 24 * 60 * 60;
@@ -257,6 +247,7 @@ impl InvoiceLiquidityContract {
             funder: None,
             funded_at: None,
             amount_funded: 0,
+            amount_paid: 0,
         };
 
         save_invoice(&env, &invoice);
@@ -388,6 +379,7 @@ impl InvoiceLiquidityContract {
                 funder: None,
                 funded_at: None,
                 amount_funded: 0,
+                amount_paid: 0,
             };
 
             save_invoice(&env, &invoice);
@@ -836,9 +828,13 @@ impl InvoiceLiquidityContract {
     // mark_paid (USES invoice.token)
     // ------------------------------------------------------------
     /// Access: Payer only
-    pub fn mark_paid(env: Env, invoice_id: u64) -> Result<(), ContractError> {
+    pub fn mark_paid(env: Env, invoice_id: u64, amount: i128) -> Result<(), ContractError> {
         if is_paused(&env) {
             return Err(ContractError::ContractPaused);
+        }
+
+        if amount <= 0 {
+            return Err(ContractError::InvalidAmount);
         }
 
         if !invoice_exists(&env, invoice_id) {
@@ -862,6 +858,11 @@ impl InvoiceLiquidityContract {
             InvoiceStatus::Cancelled => return Err(ContractError::AlreadyCancelled),
         }
 
+        let remaining = invoice.amount - invoice.amount_paid;
+        if amount > remaining {
+            return Err(ContractError::OverpaymentRejected);
+        }
+
         let funders = get_invoice_funders(&env, invoice_id);
         if funders.len() == 0 {
             return Err(ContractError::NotFunded);
@@ -870,9 +871,25 @@ impl InvoiceLiquidityContract {
         let token = token_client(&env, &invoice.token);
         let contract_address = env.current_contract_address();
 
-        // Payer sends full invoice amount to the contract
-        token.transfer(&invoice.payer, &contract_address, &invoice.amount);
+        // Payer sends partial/full amount to the contract
+        token.transfer(&invoice.payer, &contract_address, &amount);
 
+        invoice.amount_paid += amount;
+
+        // If not fully paid, save and emit partial event
+        if invoice.amount_paid < invoice.amount {
+            save_invoice(&env, &invoice);
+            env.events().publish_event(&InvoicePartiallyPaid {
+                invoice_id: invoice.id,
+                payer: invoice.payer.clone(),
+                amount_paid_now: amount,
+                total_amount_paid: invoice.amount_paid,
+                remaining_amount: invoice.amount - invoice.amount_paid,
+            });
+            return Ok(());
+        }
+
+        // --- FULL PAYMENT LOGIC ---
         // Calculate protocol fee and deduct it
         let fee_rate: u32 = env
             .storage()
@@ -1367,7 +1384,7 @@ impl InvoiceLiquidityContract {
         }
 
         let dispute = get_dispute(&env, invoice_id).ok_or(ContractError::InvoiceNotFound)?;
-        let config = crate::config::get_config(&env).map_err(|_| ContractError::Unauthorized)?;
+        let config = crate::storage::get_config(&env).ok_or(ContractError::Unauthorized)?;
 
         let now_ledger = env.ledger().sequence();
         
@@ -1424,7 +1441,7 @@ impl InvoiceLiquidityContract {
     }
 
     pub fn get_config(env: Env) -> Result<Config, ContractError> {
-        crate::config::get_config(&env).map_err(|_| ContractError::Unauthorized)
+        crate::storage::get_config(&env).ok_or(ContractError::Unauthorized)
     }
     // payer_score
     // ----------------------------------------------------------------
@@ -1595,11 +1612,10 @@ mod tests_state_machine;
 mod tests_storage;
 #[cfg(test)]
 mod tests_invoice_paid_event;
-<<<<<<< fix/storage-key-namespacing
-=======
 mod tests_dispute;
-// mod tests_reputation_edge_cases;
->>>>>>> main
 #[cfg(test)]
-mod tests_lp_funding_details_event;#[cfg(test)]
+mod tests_lp_funding_details_event;
+#[cfg(test)]
 mod tests_access_control;
+#[cfg(test)]
+mod tests_partial_payment;
