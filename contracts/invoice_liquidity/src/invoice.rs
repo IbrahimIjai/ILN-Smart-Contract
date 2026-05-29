@@ -135,6 +135,7 @@ pub enum StorageKey {
     FeeRate,
     MaxDiscountRate,
     DistributionContract,
+    NextInvoiceId,
     // ── Issue #36: appeal_default ──────────────────────────────────
     Appeal(u64),               // AppealRecord keyed by invoice ID
     PreDefaultPayerScore(u64), // payer score snapshot taken BEFORE claim_default penalty
@@ -241,23 +242,26 @@ pub fn invoice_exists(env: &Env, id: u64) -> bool {
     env.storage().persistent().has(&StorageKey::Invoice(id))
 }
 
-pub fn next_invoice_id(env: &Env) -> u64 {
-    let current: u64 = env
-        .storage()
-        .persistent()
-        .get(&StorageKey::InvoiceCount)
-        .unwrap_or(0);
-
-    let next = current + 1;
-
+pub fn read_next_invoice_id(env: &Env) -> u64 {
     env.storage()
-        .persistent()
-        .set(&StorageKey::InvoiceCount, &next);
-    env.storage()
-        .persistent()
-        .extend_ttl(&StorageKey::InvoiceCount, 1_000_000, 2_000_000);
+        .instance()
+        .get(&StorageKey::NextInvoiceId)
+        .unwrap_or(1)
+}
 
-    next
+pub fn write_next_invoice_id(env: &Env, id: u64) {
+    env.storage().instance().set(&StorageKey::NextInvoiceId, &id);
+}
+
+pub fn next_invoice_id(env: &Env) -> Result<u64, crate::errors::ContractError> {
+    let current_id = read_next_invoice_id(env);
+    let next_id = current_id
+        .checked_add(1)
+        .ok_or(crate::errors::ContractError::ArithmeticOverflow)?;
+
+    write_next_invoice_id(env, next_id);
+
+    Ok(current_id)
 }
 
 // ----------------------------------------------------------------

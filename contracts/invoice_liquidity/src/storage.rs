@@ -13,6 +13,7 @@ pub enum DataKey {
     MaxDiscountRate,
     DistributionContract,
     Paused,
+    NextInvoiceId,
 
     // Persistent Storage
     Invoice(u64),
@@ -91,20 +92,26 @@ pub fn invoice_exists(env: &Env, id: u64) -> bool {
     env.storage().persistent().has(&DataKey::Invoice(id))
 }
 
-pub fn next_invoice_id(env: &Env) -> u64 {
-    let current: u64 = env
-        .storage()
-        .persistent()
-        .get(&DataKey::InvoiceCount)
-        .unwrap_or(0);
-
-    let next = current + 1;
-
+pub fn read_next_invoice_id(env: &Env) -> u64 {
     env.storage()
-        .persistent()
-        .set(&DataKey::InvoiceCount, &next);
+        .instance()
+        .get(&DataKey::NextInvoiceId)
+        .unwrap_or(1)
+}
 
-    next
+pub fn write_next_invoice_id(env: &Env, id: u64) {
+    env.storage().instance().set(&DataKey::NextInvoiceId, &id);
+}
+
+pub fn next_invoice_id(env: &Env) -> Result<u64, crate::errors::ContractError> {
+    let current_id = read_next_invoice_id(env);
+    let next_id = current_id
+        .checked_add(1)
+        .ok_or(crate::errors::ContractError::ArithmeticOverflow)?;
+
+    write_next_invoice_id(env, next_id);
+
+    Ok(current_id)
 }
 
 // ----------------------------------------------------------------
