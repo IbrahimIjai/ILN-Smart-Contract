@@ -1,0 +1,1 @@
+pub const MAX_DISCOUNT_RATE: u32 = 5000;
