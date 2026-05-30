@@ -30,6 +30,7 @@ struct GovTestEnv {
     contract: GovContractClient<'static>,
     gov_token: TokenClient<'static>,
     gov_token_admin: StellarAssetClient<'static>,
+    iln_contract: Address,
     voter_a: Address,
     voter_b: Address,
     proposer: Address,
@@ -70,6 +71,7 @@ fn setup() -> GovTestEnv {
         contract,
         gov_token,
         gov_token_admin,
+        iln_contract,
         voter_a,
         voter_b,
         proposer,
@@ -175,7 +177,27 @@ fn test_double_initialize_rejected() {
     t.contract.initialize(&iln, &token);
 }
 
-// ── Issue #61 ─────────────────────────────────────────────────────────────────
+#[test]
+fn test_min_quorum_bps_defaults_to_10_percent() {
+    let t = setup();
+    assert_eq!(t.contract.get_min_quorum_bps(), 1_000);
+}
+
+#[test]
+fn test_set_min_quorum_bps_updates_config() {
+    let t = setup();
+    t.contract.set_min_quorum_bps(&2_000);
+    assert_eq!(t.contract.get_min_quorum_bps(), 2_000);
+}
+
+#[test]
+#[should_panic]
+fn test_set_min_quorum_bps_rejects_zero() {
+    let t = setup();
+    t.contract.set_min_quorum_bps(&0);
+}
+
+// ── Issue #61: cast_vote ──────────────────────────────────────────────────────
 
 #[test]
 fn test_cast_vote_for_updates_votes_for() {
@@ -370,7 +392,82 @@ fn test_execute_quorum_not_reached_rejected() {
     let mut ledger = t.env.ledger().get();
     ledger.timestamp += 259_201;
     t.env.ledger().set(ledger);
+
+    // Total supply = 100_000; default quorum = 10_000; voter_a voted 1_000 — below quorum.
     t.contract.execute_proposal(&id, &100_000);
+}
+
+#[test]
+fn test_execute_quorum_exact_threshold_is_allowed() {
+    let t = setup();
+    let id = create_fee_proposal(&t);
+
+    // Create a voter with exactly 10% of total supply.
+    let voter = Address::generate(&t.env);
+    t.gov_token_admin.mint(&voter, &1_000);
+
+    t.contract.cast_vote(&voter, &id, &true);
+
+    // Advance past voting window.
+    let mut ledger = t.env.ledger().get();
+    ledger.timestamp += 259_201;
+    t.env.ledger().set(ledger);
+
+    // total_supply = 10_000; quorum = 1_000; total_votes = 1_000 => meets quorum.
+    let res = t.env.as_contract(&t.contract.address, || {
+        GovContract::execute_proposal(t.env.clone(), id, 10_000)
+    });
+    assert!(res.is_ok());
+
+    let p = t.contract.get_proposal(&id);
+    assert_eq!(p.status, ProposalStatus::Executed);
+}
+
+#[test]
+fn test_execute_quorum_not_met_fails_without_executing() {
+    let t = setup();
+    let id = create_fee_proposal(&t);
+
+    // 500 votes, below 10% quorum for total_supply=10_000.
+    let voter = Address::generate(&t.env);
+    t.gov_token_admin.mint(&voter, &500);
+    t.contract.cast_vote(&voter, &id, &true);
+
+    let mut ledger = t.env.ledger().get();
+    ledger.timestamp += 259_201;
+    t.env.ledger().set(ledger);
+
+    let res = t.env.as_contract(&t.contract.address, || {
+        GovContract::execute_proposal(t.env.clone(), id, 10_000)
+    });
+    assert_eq!(res, Err(GovernanceError::QuorumNotReached));
+
+    let p = t.contract.get_proposal(&id);
+    assert_eq!(p.status, ProposalStatus::Rejected);
+}
+
+#[test]
+fn test_execute_quorum_met_passes_with_custom_quorum_bps() {
+    let t = setup();
+    let id = create_fee_proposal(&t);
+
+    // Configure quorum to 20% (2000 bps).
+    t.contract.set_min_quorum_bps(&2_000);
+
+    // voter_b has 2_000 tokens in setup, which equals 20% of total_supply=10_000.
+    t.contract.cast_vote(&t.voter_b, &id, &true);
+
+    let mut ledger = t.env.ledger().get();
+    ledger.timestamp += 259_201;
+    t.env.ledger().set(ledger);
+
+    let res = t.env.as_contract(&t.contract.address, || {
+        GovContract::execute_proposal(t.env.clone(), id, 10_000)
+    });
+    assert!(res.is_ok());
+
+    let p = t.contract.get_proposal(&id);
+    assert_eq!(p.status, ProposalStatus::Executed);
 }
 
 #[test]

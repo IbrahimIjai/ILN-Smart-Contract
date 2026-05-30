@@ -1,0 +1,17 @@
+[package]
+name = "iln_fuzz"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["lib"]
+
+[dependencies]
+soroban-sdk = { workspace = true, features = ["hazmat-address"] }
+invoice_liquidity = { path = "../invoice_liquidity" }
+
+[dev-dependencies]
+soroban-sdk = { workspace = true, features = ["testutils"] }
+proptest = "1"
+rand = "0.10.1"

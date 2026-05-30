@@ -694,6 +694,18 @@
                       "key": {
                         "vec": [
                           {
+                            "symbol": "MinQuorumBps"
+                          }
+                        ]
+                      },
+                      "val": {
+                        "u32": 1000
+                      }
+                    },
+                    {
+                      "key": {
+                        "vec": [
+                          {
                             "symbol": "ProposalCount"
                           }
                         ]

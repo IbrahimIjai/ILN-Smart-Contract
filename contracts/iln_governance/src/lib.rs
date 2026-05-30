@@ -14,6 +14,8 @@ use soroban_sdk::{
 /// Vote receipts only need to outlive the active voting window.
 const VOTE_RECEIPT_TTL_THRESHOLD_LEDGERS: u32 = 50_000;
 const VOTE_RECEIPT_TTL_LEDGERS: u32 = 69_120;
+/// Default minimum quorum = 10% (1000 bps).
+const DEFAULT_MIN_QUORUM_BPS: u32 = 1_000;
 
 /// Maximum transitive delegation chain depth we will traverse.
 const MAX_DELEGATION_DEPTH: u32 = 10;
@@ -41,6 +43,8 @@ pub enum GovernanceError {
     DelegationCyclePrevented = 12,
     TimelockNotExpired = 13,
     Unauthorized = 14,
+    /// Invalid quorum basis points (must be 1..=10_000).
+    InvalidQuorumBps = 15,
 }
 
 // ================================================================
@@ -141,6 +145,9 @@ pub struct ProposalExecuted {
 pub enum StorageKey {
     IlnContract,
     GovToken,
+    /// Configurable minimum participation required for proposal passing.
+    /// Expressed in basis points (bps) of total supply, e.g. 1000 = 10%.
+    MinQuorumBps,
     Proposal(u64),
     ProposalCount,
     VoteWeightSnapshot(u64, Address),
@@ -180,11 +187,43 @@ impl GovContract {
             .set(&StorageKey::GovToken, &gov_token);
         env.storage()
             .instance()
+            .set(&StorageKey::MinQuorumBps, &DEFAULT_MIN_QUORUM_BPS);
+        env.storage()
+            .instance()
             .set(&StorageKey::ProposalCount, &0_u64);
         Ok(())
     }
 
-    // ── create_proposal ───────────────────────────────────────────
+    /// Returns the configured minimum quorum in bps (e.g. 1000 = 10%).
+    pub fn get_min_quorum_bps(env: Env) -> u32 {
+        env.storage()
+            .instance()
+            .get(&StorageKey::MinQuorumBps)
+            .unwrap_or(DEFAULT_MIN_QUORUM_BPS)
+    }
+
+    /// Updates the minimum quorum configuration.
+    ///
+    /// Authorization: the configured ILN contract address must authorize.
+    pub fn set_min_quorum_bps(env: Env, min_quorum_bps: u32) -> Result<(), GovernanceError> {
+        if min_quorum_bps == 0 || min_quorum_bps > 10_000 {
+            return Err(GovernanceError::InvalidQuorumBps);
+        }
+
+        let iln_contract: Address = env
+            .storage()
+            .instance()
+            .get(&StorageKey::IlnContract)
+            .unwrap();
+        iln_contract.require_auth();
+
+        env.storage()
+            .instance()
+            .set(&StorageKey::MinQuorumBps, &min_quorum_bps);
+        Ok(())
+    }
+
+    // ── Issue #59: create_proposal ────────────────────────────────
 
     pub fn create_proposal(
         env: Env,
@@ -470,7 +509,18 @@ impl GovContract {
 
         if proposal.status == ProposalStatus::Active {
             let total_votes = proposal.votes_for + proposal.votes_against;
-            let quorum = total_supply / 10;
+            let min_quorum_bps: u32 = env
+                .storage()
+                .instance()
+                .get(&StorageKey::MinQuorumBps)
+                .unwrap_or(DEFAULT_MIN_QUORUM_BPS);
+            let quorum = if total_supply <= 0 {
+                0_i128
+            } else {
+                total_supply
+                    .saturating_mul(min_quorum_bps as i128)
+                    / 10_000_i128
+            };
 
             if total_votes < quorum {
                 proposal.status = ProposalStatus::Rejected;

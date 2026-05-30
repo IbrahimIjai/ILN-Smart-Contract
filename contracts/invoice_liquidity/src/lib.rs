@@ -33,7 +33,7 @@ use crate::storage::get_admin;
 use events::{
     AdminChanged, AppealResolved, ContractPaused, ContractUnpaused, ContractUpgraded,
     DefaultAppealed, DisputeResolved, FundQueueResolved, FundRequested, InvoiceCancelled,
-    InvoiceDefaulted, InvoiceDisputed, InvoiceFunded, InvoicePaid, InvoicePartiallyPaid,
+    InvoiceDefaulted, InvoiceDisputed, InvoiceExpired, InvoiceFunded, InvoicePaid, InvoicePartiallyPaid,
     InvoiceSubmitted, InvoiceTransferred, InvoiceUpdated, ParameterUpdated, TokenAdded,
     TokenRemoved,
 };
@@ -777,10 +777,15 @@ impl InvoiceLiquidityContract {
         }
 
         if invoice.status == InvoiceStatus::Pending
-            && env.ledger().timestamp() >= u64::from(invoice.due_date)
+            && env.ledger().timestamp() > u64::from(invoice.due_date)
         {
             invoice.status = InvoiceStatus::Expired;
             save_invoice(&env, &invoice);
+            env.events().publish_event(&InvoiceExpired {
+                invoice_id: invoice.id,
+                freelancer: invoice.freelancer.clone(),
+                status: invoice.status.clone(),
+            });
             return Err(ContractError::InvoiceExpired);
         }
 
@@ -1027,7 +1032,7 @@ impl InvoiceLiquidityContract {
 
         let mut invoice = load_invoice(&env, invoice_id);
 
-        if env.ledger().timestamp() < u64::from(invoice.due_date) {
+        if env.ledger().timestamp() <= u64::from(invoice.due_date) {
             return Err(ContractError::NotYetDefaulted);
         }
 
@@ -1035,6 +1040,11 @@ impl InvoiceLiquidityContract {
             InvoiceStatus::Pending => {
                 invoice.status = InvoiceStatus::Expired;
                 save_invoice(&env, &invoice);
+                env.events().publish_event(&InvoiceExpired {
+                    invoice_id: invoice.id,
+                    freelancer: invoice.freelancer.clone(),
+                    status: invoice.status.clone(),
+                });
                 Ok(())
             }
             InvoiceStatus::PartiallyFunded | InvoiceStatus::Funded => {

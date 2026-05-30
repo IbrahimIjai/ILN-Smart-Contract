@@ -871,6 +871,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "iln_fuzz"
+version = "0.1.0"
+dependencies = [
+ "invoice_liquidity",
+ "proptest",
+ "rand 0.10.1",
+ "soroban-sdk",
+]
+
+[[package]]
 name = "iln_governance"
 version = "0.0.0"
 dependencies = [
