@@ -921,6 +921,7 @@ name = "invoice_liquidity"
 version = "0.1.0"
 dependencies = [
  "ed25519-dalek",
+ "iln_governance",
  "proptest",
  "rand 0.10.1",
  "serde_json",

@@ -2,6 +2,9 @@
 
 Thank you for your interest in contributing to ILN-Smart-Contract!
 
+> **New here?** Start with the [Developer Quickstart](docs/developer-quickstart.md) — it covers Rust toolchain setup, building, running tests, and deploying to testnet.
+
+
 ## 🧪 Testing
 
 ### Running Unit and Integration Tests
