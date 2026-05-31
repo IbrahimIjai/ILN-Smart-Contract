@@ -81,7 +81,7 @@
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAK3IM"
                 },
                 {
-                  "i128": "500"
+                  "i128": "1000"
                 }
               ]
             }
@@ -614,7 +614,7 @@
               },
               "durability": "persistent",
               "val": {
-                "i128": "500"
+                "i128": "1000"
               }
             }
           },
@@ -644,7 +644,7 @@
               },
               "durability": "persistent",
               "val": {
-                "i128": "500"
+                "i128": "1000"
               }
             }
           },
@@ -877,7 +877,7 @@
                       "symbol": "amount"
                     },
                     "val": {
-                      "i128": "500"
+                      "i128": "1000"
                     }
                   },
                   {
@@ -1023,5 +1023,64 @@
       }
     ]
   },
-  "events": []
+  "events": [
+    {
+      "event": {
+        "ext": "v0",
+        "contract_id": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAARQG5",
+        "type_": "contract",
+        "body": {
+          "v0": {
+            "topics": [
+              {
+                "symbol": "proposal_created"
+              },
+              {
+                "u64": "2"
+              },
+              {
+                "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAK3IM"
+              }
+            ],
+            "data": {
+              "map": [
+                {
+                  "key": {
+                    "symbol": "action_type"
+                  },
+                  "val": {
+                    "vec": [
+                      {
+                        "symbol": "UpdateFeeRate"
+                      },
+                      {
+                        "u32": 200
+                      }
+                    ]
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "proposed_value"
+                  },
+                  "val": {
+                    "i128": "200"
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "voting_end"
+                  },
+                  "val": {
+                    "u64": "1700259200"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      "failed_call": false
+    }
+  ]
 }

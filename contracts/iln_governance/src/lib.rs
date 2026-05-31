@@ -820,6 +820,54 @@ impl GovContract {
             .ok_or(GovernanceError::ProposalNotFound)
     }
 
+    pub fn list_proposals(
+        env: Env,
+        status: Option<ProposalStatus>,
+        page: u32,
+        page_size: u32,
+    ) -> Vec<GovernanceProposal> {
+        let count: u64 = env
+            .storage()
+            .instance()
+            .get(&StorageKey::ProposalCount)
+            .unwrap_or(0);
+
+        let mut result = Vec::new(&env);
+        if count == 0 || page_size == 0 {
+            return result;
+        }
+
+        let actual_page_size = if page_size > 20 { 20 } else { page_size };
+        let skip = (page * actual_page_size) as u64;
+        let mut skipped = 0_u64;
+
+        for id in (1..=count).rev() {
+            if let Some(proposal) = env
+                .storage()
+                .persistent()
+                .get::<_, GovernanceProposal>(&StorageKey::Proposal(id))
+            {
+                let matches_status = match &status {
+                    Some(s) => &proposal.status == s,
+                    None => true,
+                };
+
+                if matches_status {
+                    if skipped < skip {
+                        skipped += 1;
+                    } else {
+                        result.push_back(proposal);
+                        if result.len() == actual_page_size {
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        result
+    }
+
     pub fn has_voted(env: Env, voter: Address, proposal_id: u64) -> bool {
         env.storage()
             .temporary()
