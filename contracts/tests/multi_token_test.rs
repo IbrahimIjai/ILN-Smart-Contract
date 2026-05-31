@@ -19,6 +19,7 @@ struct MockToken {
     admin_client: StellarAssetClient<'static>,
 }
 
+#[allow(dead_code)]
 struct MultiTokenTestEnv {
     env: Env,
     contract: InvoiceLiquidityContractClient<'static>,

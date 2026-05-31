@@ -422,7 +422,7 @@ impl GovContract {
         if let Some(old_delegate) = Self::get_delegate_raw(&env, &delegator) {
             let old_terminal = Self::resolve_terminal(&env, &old_delegate);
             let delegator_balance = Self::get_own_balance_for_delegation(&env, &delegator);
-            Self::adjust_delegated_to_me(&env, &old_terminal, -(delegator_balance as i128));
+            Self::adjust_delegated_to_me(&env, &old_terminal, -delegator_balance);
         }
 
         // ── Store forward pointer ─────────────────────────────────
@@ -432,7 +432,7 @@ impl GovContract {
 
         // ── Add weight to new terminal ────────────────────────────
         let delegator_balance = Self::get_own_balance_for_delegation(&env, &delegator);
-        Self::adjust_delegated_to_me(&env, &terminal, delegator_balance as i128);
+        Self::adjust_delegated_to_me(&env, &terminal, delegator_balance);
 
         env.events().publish_event(&VotesDelegated {
             delegator,
@@ -453,7 +453,7 @@ impl GovContract {
         if let Some(old_delegate) = Self::get_delegate_raw(&env, &delegator) {
             let old_terminal = Self::resolve_terminal(&env, &old_delegate);
             let delegator_balance = Self::get_own_balance_for_delegation(&env, &delegator);
-            Self::adjust_delegated_to_me(&env, &old_terminal, -(delegator_balance as i128));
+            Self::adjust_delegated_to_me(&env, &old_terminal, -delegator_balance);
 
             env.storage()
                 .persistent()

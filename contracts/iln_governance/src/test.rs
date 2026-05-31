@@ -30,6 +30,7 @@ struct GovTestEnv {
     contract: GovContractClient<'static>,
     gov_token: TokenClient<'static>,
     gov_token_admin: StellarAssetClient<'static>,
+    #[allow(dead_code)]
     iln_contract: Address,
     voter_a: Address,
     voter_b: Address,
@@ -628,7 +629,7 @@ fn test_undelegate_votes_emits_votes_undelegated_event() {
     t.contract.undelegate_votes(&t.voter_a);
     let events = t.env.events().all().filter_by_contract(&t.contract.address);
     assert!(
-        events.events().len() >= 1,
+        !events.events().is_empty(),
         "VotesUndelegated event should be emitted"
     );
 }

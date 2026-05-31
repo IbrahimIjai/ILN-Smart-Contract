@@ -1,4 +1,8 @@
 #![no_std]
+// Soroban's contractimpl/contractargs macros generate client functions that
+// mirror the contract's public interface — these may exceed the 7-argument
+// threshold when the source function itself has many arguments.
+#![allow(clippy::too_many_arguments)]
 
 #[cfg(test)]
 extern crate std;
@@ -13,6 +17,7 @@ pub mod storage;
 pub mod top_payers;
 use access::*;
 pub mod constants;
+pub mod oracle_interface;
 #[cfg(test)]
 mod tests_discount_rate;
 mod tests_lp_pagination;
@@ -77,6 +82,7 @@ const MAX_INVOICE_DURATION: u64 = 365 * 24 * 60 * 60;
 #[contract]
 pub struct InvoiceLiquidityContract;
 
+#[allow(clippy::too_many_arguments)]
 #[contractimpl]
 impl InvoiceLiquidityContract {
     // ------------------------------------------------------------
@@ -1109,7 +1115,7 @@ impl InvoiceLiquidityContract {
         }
 
         let funders = get_invoice_funders(&env, invoice_id);
-        if funders.len() == 0 {
+        if funders.is_empty() {
             return Err(ContractError::NotFunded);
         }
 
@@ -1538,7 +1544,7 @@ impl InvoiceLiquidityContract {
             invoice_id,
             &DisputeRecord {
                 reason_hash: reason_hash.clone(),
-                disputed_at: now_ledger.into(),
+                disputed_at: now_ledger,
             },
         );
 
@@ -1673,6 +1679,7 @@ impl InvoiceLiquidityContract {
     // Contract Configuration
     // ================================================================
 
+    #[allow(clippy::too_many_arguments)]
     pub fn update_config(
         env: Env,
         caller: Address,
@@ -1813,13 +1820,6 @@ fn discount_rate_as_i128(rate: u32) -> i128 {
 // ----------------------------------------------------------------
 // XLM PRECISION HANDLING
 // ----------------------------------------------------------------
-// XLM has 7 decimal places (1 XLM = 10,000,000 stroops)
-// USDC has 6 decimal places (1 USDC = 1,000,000 units)
-// These helpers ensure correct precision handling
-
-const XLM_DECIMALS: u32 = 7;
-const USDC_DECIMALS: u32 = 6;
-
 /// Check if a token address is the XLM SAC address
 fn is_xlm_token(env: &Env, token: &Address) -> bool {
     if let Some(config) = crate::storage::get_config(env) {

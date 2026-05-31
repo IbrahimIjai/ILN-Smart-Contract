@@ -4,7 +4,7 @@
 // invoice and dispute/appeal record representations.
 
 use super::*;
-use super::test::{setup, TestEnv};
+use super::test::setup;
 use soroban_sdk::BytesN;
 
 #[test]

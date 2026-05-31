@@ -2,6 +2,8 @@
 // Tests contract performance under load and verifies stat counter accuracy
 
 #![cfg(test)]
+// Timing variables and loop indices are captured for potential future use.
+#![allow(dead_code, unused_variables)]
 
 use super::*;
 use soroban_sdk::{

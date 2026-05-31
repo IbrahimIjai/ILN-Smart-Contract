@@ -1,8 +1,7 @@
 #![cfg(test)]
 
-use super::*;
 use crate::test::setup;
-use soroban_sdk::{testutils::Address as _, token::StellarAssetClient, Address, Vec};
+use soroban_sdk::{testutils::Address as _, token::StellarAssetClient, Address};
 
 #[test]
 fn test_list_invoices_by_lp_pagination() {

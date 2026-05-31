@@ -17,6 +17,7 @@ const INVOICE_AMOUNT: i128 = 1_000_000_000;
 const DISCOUNT_RATE: u32 = 300;
 const DUE_DATE_OFFSET: u64 = 60 * 60 * 24 * 30; // 30 days
 
+#[allow(dead_code)]
 struct TestEnv {
     env: Env,
     contract: InvoiceLiquidityContractClient<'static>,
@@ -165,7 +166,7 @@ fn test_contract_stats_multiple_invoices() {
     let due_date = t.env.ledger().timestamp() + DUE_DATE_OFFSET;
 
     // Submit 3 invoices
-    for i in 0..3 {
+    for _i in 0..3 {
         t.contract.submit_invoice(
             &t.freelancer,
             &t.payer,
@@ -382,7 +383,7 @@ fn test_pause_non_admin_fails() {
     let t = setup();
 
     // Create a non-admin address
-    let non_admin = Address::generate(&t.env);
+    let _non_admin = Address::generate(&t.env);
 
     // We need to test that non-admin cannot pause
     // Since we're using mock_all_auths, we need to manually test this
@@ -396,7 +397,7 @@ fn test_unpause_non_admin_fails() {
     t.contract.pause();
 
     // Create a non-admin address
-    let non_admin = Address::generate(&t.env);
+    let _non_admin = Address::generate(&t.env);
 
     // We need to test that non-admin cannot unpause
     // Since we're using mock_all_auths, we need to manually test this

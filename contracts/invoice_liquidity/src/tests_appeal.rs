@@ -27,6 +27,7 @@ const INVOICE_AMOUNT: i128 = 1_000_000_000;
 const DISCOUNT_RATE: u32 = 300;
 const DUE_DATE_OFFSET: u64 = 60 * 60 * 24 * 30; // 30 days
 
+#[allow(dead_code)]
 struct AppealTestEnv {
     env: Env,
     contract: InvoiceLiquidityContractClient<'static>,
@@ -138,7 +139,7 @@ fn test_appeal_default_emits_event() {
 
     // Verify the DefaultAppealed event was emitted.
     let events = t.env.events().all().filter_by_contract(&t.contract.address);
-    let last = events.events().last().expect("Expected an event");
+    let _last = events.events().last().expect("Expected an event");
     // The last event topics should contain "default_appealed".
     // We check the invoice is in Appealed state as a proxy.
     let invoice = t.contract.get_invoice(&id);

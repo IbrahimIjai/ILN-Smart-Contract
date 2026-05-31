@@ -37,13 +37,22 @@ impl ReputationScore {
     }
 }
 
+impl Default for ReputationScore {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 pub fn read_reputation(env: &Env, address: &Address) -> ReputationScore {
     env.storage()
         .persistent()
         .get(&ReputationKey::Reputation(address.clone()))
-        .unwrap_or_else(|| ReputationScore::new())
+        .unwrap_or_default()
 }
 
+// env.events().publish() is deprecated in favour of #[contractevent];
+// migrating this crate is out of scope here.
+#[allow(deprecated)]
 pub fn write_reputation(env: &Env, address: &Address, mut reputation: ReputationScore) {
     reputation.recalculate_score();
     env.storage()

@@ -9,14 +9,13 @@
 //! - Volume tracking for XLM
 
 #![cfg(test)]
+// Test setup often destructures tuples where only some bindings are used.
+#![allow(dead_code, unused_variables)]
 
 use super::*;
 use soroban_sdk::testutils::Address as _;
 use soroban_sdk::token::{Client as TokenClient, StellarAssetClient};
 use soroban_sdk::{Address, Env};
-
-const XLM_DECIMALS: u32 = 7; // 1 XLM = 10,000,000 stroops
-const USDC_DECIMALS: u32 = 6; // 1 USDC = 1,000,000 units
 
 // Test amounts in XLM (7 decimal places)
 const XLM_INVOICE_AMOUNT: i128 = 100_000_000; // 10 XLM

@@ -3,7 +3,6 @@
 use crate::constants::MAX_DISCOUNT_RATE;
 use crate::errors::ContractError;
 use crate::test::setup;
-use soroban_sdk::{testutils::Ledger, Env};
 
 const INVOICE_AMOUNT: i128 = 1_000_000_000;
 const DUE_DATE_OFFSET: u64 = 60 * 60 * 24 * 30;

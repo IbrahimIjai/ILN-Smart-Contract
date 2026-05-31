@@ -685,7 +685,7 @@ pub fn add_volume(env: &Env, token: &Address, amount: i128) {
         .get(&StorageKey::TokenList)
         .unwrap_or(soroban_sdk::Vec::new(env));
 
-    if token_list.len() > 0 {
+    if !token_list.is_empty() {
         if let Some(usdc_addr) = token_list.get(0) {
             if token == &usdc_addr {
                 let current: i128 = env

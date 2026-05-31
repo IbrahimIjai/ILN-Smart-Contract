@@ -1,6 +1,6 @@
 use soroban_sdk::{Address, Env, Vec};
 
-use crate::constants::{DEFAULT_PAYER_SCORE, TOP_PAYERS_CAPACITY};
+use crate::constants::TOP_PAYERS_CAPACITY;
 use crate::invoice::{StorageKey, TopPayerEntry};
 
 /// Load the top-payers min-heap from persistent storage.
@@ -171,7 +171,7 @@ pub fn get_top_payers(env: &Env, limit: u32) -> Vec<TopPayerEntry> {
     for _ in 0..take {
         let mut best_index: Option<u32> = None;
         for i in 0..heap_len {
-            if used.contains(&i) {
+            if used.contains(i) {
                 continue;
             }
             let candidate = heap.get(i).unwrap();

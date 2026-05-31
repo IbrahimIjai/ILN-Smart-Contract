@@ -22,7 +22,7 @@ pub fn require_admin(env: &Env) -> Result<(), ContractError> {
     Ok(())
 }
 
-pub fn require_submitter(env: &Env, caller: &Address) -> Result<(), ContractError> {
+pub fn require_submitter(_env: &Env, caller: &Address) -> Result<(), ContractError> {
     caller.require_auth();
     Ok(())
 }
@@ -52,7 +52,7 @@ pub fn require_payer_by_id(env: &Env, invoice_id: u64) -> Result<(), ContractErr
     Ok(())
 }
 
-pub fn require_lp(env: &Env, caller: &Address) -> Result<(), ContractError> {
+pub fn require_lp(_env: &Env, caller: &Address) -> Result<(), ContractError> {
     caller.require_auth();
     Ok(())
 }

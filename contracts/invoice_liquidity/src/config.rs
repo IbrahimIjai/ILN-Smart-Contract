@@ -1,4 +1,3 @@
-use crate::errors::ContractError;
 use crate::events::ParameterUpdated;
 use soroban_sdk::{contracttype, Address, Env, Symbol};
 
@@ -24,6 +23,7 @@ pub enum ConfigError {
 
 const MAX_BONUS_BPS: u32 = 500;
 
+#[allow(clippy::too_many_arguments)]
 pub fn update_config(
     env: &Env,
     caller: &Address,

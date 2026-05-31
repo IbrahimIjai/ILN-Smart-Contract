@@ -1163,12 +1163,12 @@ fn test_upgrade_emits_correct_event() {
 #[test]
 fn test_upgrade_requires_admin() {
     let t = setup();
-    let unauthorized_caller = Address::generate(&t.env);
+    let _unauthorized_caller = Address::generate(&t.env);
 
     let wasm_hash = soroban_sdk::BytesN::from_array(&t.env, &[2u8; 32]);
 
     // Non-admin should not be able to call upgrade
-    let result = t.contract.try_upgrade(&wasm_hash);
+    let _result = t.contract.try_upgrade(&wasm_hash);
 
     // Should fail (admin-only)
     // Note: In test env with mock_all_auths(), this might not fail
@@ -1188,7 +1188,7 @@ fn test_upgrade_does_not_affect_existing_invoices() {
 
     // Perform upgrade
     let wasm_hash = soroban_sdk::BytesN::from_array(&t.env, &[3u8; 32]);
-    let _ = t.contract.upgrade(&wasm_hash);
+    t.contract.upgrade(&wasm_hash);
 
     // Verify invoice is still readable and unchanged
     let invoice_after = t.contract.get_invoice(&id);
@@ -1220,7 +1220,7 @@ fn test_upgrade_snapshot_before_after() {
     let t = setup();
 
     // Get contract stats before upgrade
-    let stats_before = t.contract.get_contract_stats();
+    let _stats_before = t.contract.get_contract_stats();
 
     // Submit invoices to have data
     let _id1 = submit_standard_invoice(&t);
@@ -1228,7 +1228,7 @@ fn test_upgrade_snapshot_before_after() {
 
     // Perform upgrade
     let wasm_hash = soroban_sdk::BytesN::from_array(&t.env, &[4u8; 32]);
-    let _ = t.contract.upgrade(&wasm_hash);
+    t.contract.upgrade(&wasm_hash);
 
     // Get contract stats after upgrade
     let stats_after = t.contract.get_contract_stats();

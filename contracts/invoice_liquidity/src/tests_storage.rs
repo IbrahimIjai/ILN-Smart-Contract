@@ -2,7 +2,6 @@
 
 use super::*;
 use crate::invoice::InvoiceStatus;
-use crate::storage::DataKey;
 use soroban_sdk::{
     testutils::{storage::Persistent, Address as _, Ledger},
     token::{Client as TokenClient, StellarAssetClient},

@@ -48,6 +48,7 @@ const DUE_OFFSET_MAX: u64 = 31_536_000;
 
 // ── Test environment ──────────────────────────────────────────────────────────
 
+#[allow(dead_code)]
 struct InvariantEnv {
     env: Env,
     contract: InvoiceLiquidityContractClient<'static>,

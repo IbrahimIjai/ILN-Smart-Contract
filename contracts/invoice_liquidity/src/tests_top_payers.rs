@@ -7,6 +7,7 @@ use crate::test::setup;
 use soroban_sdk::testutils::Address as _;
 use soroban_sdk::Address;
 
+#[allow(dead_code)]
 fn top_scores(client: &InvoiceLiquidityContractClient, limit: u32) -> soroban_sdk::Vec<u32> {
     let entries = client.get_top_payers(&limit);
     let mut scores = soroban_sdk::Vec::new(&client.env);
