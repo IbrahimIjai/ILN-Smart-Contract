@@ -7,6 +7,28 @@ on:
     branches: [ main, master ]
 
 jobs:
+  # Pre-flight check for external Stellar testnet availability. Emits a warning
+  # when the network is unavailable and sets the `healthy` job output. This
+  # allows downstream integration tests to be skipped gracefully.
+  testnet-health:
+    runs-on: ubuntu-latest
+    outputs:
+      healthy: ${{ steps.check.outputs.healthy }}
+    steps:
+      - name: Check Stellar Horizon testnet
+        id: check
+        run: |
+          set -e
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://horizon-testnet.stellar.org/ || echo "000")
+          if [ "$STATUS" = "200" ]; then
+            echo "healthy=true" >> $GITHUB_OUTPUT
+          else
+            echo "healthy=false" >> $GITHUB_OUTPUT
+            echo "::warning::Stellar Horizon testnet unreachable (status $STATUS). Integration tests will be skipped."
+          fi
+        shell: bash
+
+  # Unit / workspace tests that do not require the external testnet.
   test:
     runs-on: ubuntu-latest
     steps:
@@ -27,7 +49,36 @@ jobs:
             ~/.cargo/git
           key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Run workspace tests
+      - name: Run unit/workspace tests (no external network)
+        run: |
+          cargo test --workspace --lib
+
+  # Integration tests that require the Stellar testnet. This job depends on the
+  # `testnet-health` check and will be skipped (not failed) when the testnet is
+  # unavailable.
+  integration:
+    needs: testnet-health
+    runs-on: ubuntu-latest
+    if: needs.testnet-health.outputs.healthy == 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Run integration tests against testnet
         run: |
           cargo test --workspace --tests --all
 

@@ -6,7 +6,28 @@ on:
   workflow_dispatch:
 
 jobs:
+  # Pre-flight check for Stellar Horizon testnet used by deployment steps.
+  testnet-health:
+    runs-on: ubuntu-latest
+    outputs:
+      healthy: ${{ steps.check.outputs.healthy }}
+    steps:
+      - name: Check Stellar Horizon testnet
+        id: check
+        run: |
+          set -e
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://horizon-testnet.stellar.org/ || echo "000")
+          if [ "$STATUS" = "200" ]; then
+            echo "healthy=true" >> $GITHUB_OUTPUT
+          else
+            echo "healthy=false" >> $GITHUB_OUTPUT
+            echo "::warning::Stellar Horizon testnet unreachable (status $STATUS). Deploy job will be skipped."
+          fi
+        shell: bash
+
   deploy:
+    needs: testnet-health
+    if: needs.testnet-health.outputs.healthy == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
