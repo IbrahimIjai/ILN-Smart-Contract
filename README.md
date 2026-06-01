@@ -223,6 +223,7 @@ cargo build --target wasm32v1-none --release
 | Document | Description |
 |----------|-------------|
 | [Contract ABI](docs/contract-abi.md) | Public functions and **error codes** |
+| [Error Codes](docs/error-codes.md) | Numeric error reference with causes and remediation |
 | [Events](docs/events.md) | Emitted events and payloads |
 | [Governance](docs/governance.md) | Proposals, voting, delegation, timelock |
 | [Multi-Token Support](docs/multi-token.md) | USDC, XLM, and token configuration |
