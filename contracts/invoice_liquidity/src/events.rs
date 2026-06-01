@@ -36,6 +36,9 @@ pub struct InvoiceSubmitted {
     /// Ledger timestamp when the invoice was submitted.  Included so indexers
     /// can reconstruct the full invoice record from events alone.
     pub timestamp: u64,
+    /// Issue #122: Optional whitelist of allowed LPs for this invoice.
+    /// If present, only whitelisted LPs can fund this invoice.
+    pub allowed_lps: Option<soroban_sdk::Vec<Address>>,
 }
 
 #[contractevent(topics = ["updated"])]
