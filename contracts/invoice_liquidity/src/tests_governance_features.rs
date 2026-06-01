@@ -9,6 +9,7 @@
 use super::*;
 use crate::invoice::{get_reputation, set_reputation, ReputationProfile};
 use soroban_sdk::{
+    contracttype,
     testutils::{Address as _, Ledger},
     token::{Client as TokenClient, StellarAssetClient},
     Address, Env,
@@ -122,6 +123,7 @@ fn fund_fails_after_token_removed_from_allowlist() {
 fn add_token_then_fund_succeeds() {
     let t = setup();
     let new_token = register_mock_token(&t.env);
+    new_token.admin_client.mint(&t.admin, &100_000_000_000);
     new_token.admin_client.mint(&t.lp, &100_000_000_000);
     t.contract.add_token(&new_token.address);
 
@@ -173,8 +175,7 @@ impl FeeOnTransferToken {
 #[test]
 fn add_token_rejects_fee_on_transfer_token() {
     let t = setup();
-    let fee_token_id = t.env.register(FeeOnTransferToken, ());
-    let fee_token_address = fee_token_id.address();
+    let fee_token_address = t.env.register(FeeOnTransferToken, ());
     let fee_token_admin = StellarAssetClient::new(&t.env, &fee_token_address);
 
     fee_token_admin.mint(&t.admin, &100_000_000_000);

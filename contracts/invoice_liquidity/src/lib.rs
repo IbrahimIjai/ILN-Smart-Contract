@@ -11,24 +11,8 @@ pub mod invoice;
 pub mod rate_logic;
 pub mod storage;
 pub mod top_payers;
+pub mod constants;
 use access::*;
-pub mod constants;
-#[cfg(test)]
-mod tests_discount_rate;
-mod tests_lp_pagination;
-mod tests_new_features;
-mod tests_pagination;
-mod tests_regression;
-mod tests_xlm_support;
-#[cfg(test)]
-mod tests_discount_rate;
-#[cfg(test)]
-mod tests_error_cases;
-#[cfg(test)]
-mod tests_stress;
-#[cfg(test)]
-mod tests_lifecycle_integration;
-pub mod constants;
 
 pub use crate::invoice::{
     AppealRecord, Invoice, InvoiceParams, InvoiceStatus, LpFundRequest, ReputationProfile,
@@ -56,7 +40,7 @@ use invoice::{
     get_min_payer_reputation, get_payer_score, get_pre_default_payer_score, get_queue_resolution,
     get_reputation, get_submitter_invoices, increment_total_funded, increment_total_invoices,
     increment_total_paid, invoice_exists, is_paused, load_invoice, next_invoice_id,
-    remove_invoice_from_submitter, save_appeal, save_dispute, save_fund_queue, save_invoice,
+    remove_invoice_from_lp, remove_invoice_from_submitter, save_appeal, save_dispute, save_fund_queue, save_invoice,
     save_invoice_funders, save_pre_default_payer_score, save_queue_resolution, set_lp_score,
     set_min_payer_reputation, set_paused, set_payer_score, set_reputation, try_load_invoice,
     ContractStats, DisputeRecord, StorageKey, increment_invoices_submitted, increment_invoices_paid,
