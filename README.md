@@ -194,10 +194,15 @@ cargo build --target wasm32v1-none --release
 
 ## Testnet deployment
 
+<!-- TESTNET_CONTRACT_IDS_START -->
 | Resource | Contract ID | Notes |
-|----------|---------------|-------|
+|----------|-------------|-------|
 | **`invoice_liquidity`** | `CD3TE3IAHM737P236XZL2OYU275ZKD6MN7YH7PYYAXYIGEH55OPEWYJC` | Primary integration contract; used in [SDK examples](docs/sdk-integration.md) |
+| **`iln_governance`** | `C2AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA` | Governance proposals and voting |
+| **`iln_distribution`** | `C2AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB` | Rewards distribution |
+| **`reputation_bonus`** | `C2AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAC` | Reputation-based bonus rules |
 | **Testnet USDC (SAC)** | `CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA` | Referenced in SDK integration guide |
+<!-- TESTNET_CONTRACT_IDS_END -->
 
 | Network | RPC | Passphrase |
 |---------|-----|------------|
