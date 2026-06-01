@@ -54,6 +54,18 @@ Alternative paths include partial funding, defaults, disputes, appeals, and gove
 
 All contracts compile to Soroban WASM (`wasm32v1-none`) and are tested natively via `soroban-sdk` test utilities (no live network required for `cargo test`).
 
+| Doc | Description |
+|-----|-------------|
+| [First Invoice Tutorial](docs/tutorials/first-invoice.md) | Hands-on walkthrough: submit, fund, settle, and query an invoice on testnet |
+| [Local Development Guide](docs/local-development.md) | Docker setup, local Stellar node, deploying contracts locally, running tests |
+| [Developer Quickstart](docs/developer-quickstart.md) | Rust toolchain setup, building, testing, and deploying to testnet |
+| [SDK Integration Guide](docs/sdk-integration.md) | TypeScript examples for every contract interaction |
+| [Architecture](docs/Architecture.md) | System design, money flow, and security model |
+| [Contract ABI](docs/contract-abi.md) | Function signatures and error codes |
+| [Events](docs/events.md) | All emitted events and their payloads |
+| [Governance](docs/governance.md) | Proposal lifecycle and voting mechanics |
+| [Storage Layout](docs/storage-layout.md) | On-chain storage key reference |
+| [Threat Model](docs/threat-model.md) | Security assumptions and known risks |
 ---
 
 ## Architecture
