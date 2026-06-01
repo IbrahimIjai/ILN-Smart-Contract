@@ -53,4 +53,8 @@ pub enum ContractError {
     /// Issue #93: oracle data is older than max_oracle_age_ledgers and must
     /// be rejected to prevent stale-data attacks.
     OracleDataStale = 34,
+    /// Dutch auction: invalid auction parameters (rates or decay)
+    InvalidAuctionParams = 35,
+    /// Dutch auction: auction has expired and cannot be funded
+    AuctionExpired = 36,
 }

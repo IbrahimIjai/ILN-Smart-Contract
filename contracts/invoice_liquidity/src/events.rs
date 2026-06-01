@@ -332,3 +332,42 @@ pub struct InvoiceTokenChanged {
     pub old_token: Address,
     pub new_token: Address,
 }
+
+// ── Dutch Auction Events ───────────────────────────────────────────────────────
+
+/// Emitted when a Dutch auction invoice is created.
+/// The rate starts high and decreases linearly over time until an LP accepts.
+#[contractevent(topics = ["auction_started"])]
+#[derive(Clone, Debug, PartialEq)]
+pub struct AuctionStarted {
+    #[topic]
+    pub invoice_id: u64,
+    #[topic]
+    pub freelancer: Address,
+    pub payer: Address,
+    pub token: Address,
+    pub amount: i128,
+    pub due_date: u64,
+    pub start_rate: u32,           // starting rate in basis points
+    pub min_rate: u32,             // minimum rate in basis points
+    pub rate_decay_per_hour: u32,  // decay in basis points per hour
+    pub started_at: u64,           // timestamp when auction started
+}
+
+/// Emitted when an LP funds a Dutch auction invoice.
+/// Records the actual rate discovered at the time of funding.
+#[contractevent(topics = ["auction_funded"])]
+#[derive(Clone, Debug, PartialEq)]
+pub struct AuctionFunded {
+    #[topic]
+    pub invoice_id: u64,
+    #[topic]
+    pub funder: Address,
+    pub freelancer: Address,
+    pub payer: Address,
+    pub token: Address,
+    pub fund_amount: i128,
+    pub effective_rate: u32,       // the actual rate at time of funding
+    pub hours_elapsed: u32,        // hours elapsed since auction started
+    pub funded_at: u64,            // timestamp when auction was funded
+}

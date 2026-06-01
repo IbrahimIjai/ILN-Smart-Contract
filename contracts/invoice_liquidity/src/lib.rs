@@ -32,6 +32,8 @@ mod tests_error_cases;
 mod tests_stress;
 #[cfg(test)]
 mod tests_lifecycle_integration;
+#[cfg(test)]
+mod tests_dutch_auction;
 
 pub use crate::invoice::{
     AppealRecord, Invoice, InvoiceParams, InvoiceStatus, LpFundRequest, ReputationProfile,
@@ -47,7 +49,7 @@ use soroban_sdk::{
 
 use crate::storage::get_admin;
 use events::{
-    AdminChanged, AppealResolved, ContractPaused, ContractUnpaused, ContractUpgraded,
+    AdminChanged, AppealResolved, AuctionFunded, AuctionStarted, ContractPaused, ContractUnpaused, ContractUpgraded,
     DefaultAppealed, DisputeResolved, FundQueueResolved, FundRequested, InvoiceCancelled,
     InvoiceDefaulted, InvoiceDisputed, InvoiceExpired, InvoiceFunded, InvoicePaid, InvoicePartiallyPaid,
     InvoiceSubmitted, InvoiceTokenChanged, InvoiceTransferred, InvoiceUpdated, ParameterUpdated, TokenAdded,
@@ -65,6 +67,7 @@ use invoice::{
     ContractStats, DisputeRecord, StorageKey, increment_invoices_submitted, increment_invoices_paid,
     increment_invoices_defaulted,
 };
+use rate_logic::calculate_auction_rate;
 // 30-day window in seconds for a payer to file an appeal after a default.
 const APPEAL_WINDOW_SECONDS: u64 = 30 * 24 * 60 * 60;
 
@@ -599,6 +602,121 @@ impl InvoiceLiquidityContract {
         Ok(id)
     }
 
+    // ----------------------------------------------------------------
+    // submit_invoice_auction
+    // ----------------------------------------------------------------
+    /// Access: Submitter only
+    ///
+    /// Creates an invoice with Dutch auction funding.
+    /// The rate starts high and decreases linearly over time until the first LP accepts.
+    pub fn submit_invoice_auction(
+        env: Env,
+        freelancer: Address,
+        payer: Address,
+        amount: i128,
+        due_date: u64,
+        start_rate: u32,           // starting rate in basis points
+        min_rate: u32,             // minimum rate in basis points
+        rate_decay_per_hour: u32,  // decay in basis points per hour
+        token: Address,
+        referral_code: Option<BytesN<32>>,
+    ) -> Result<u64, ContractError> {
+        if is_paused(&env) {
+            return Err(ContractError::ContractPaused);
+        }
+
+        require_submitter(&env, &freelancer)?;
+
+        if freelancer == payer {
+            return Err(ContractError::SelfInvoice);
+        }
+
+        // Validate auction parameters
+        if start_rate == 0 || start_rate > crate::constants::MAX_DISCOUNT_RATE {
+            return Err(ContractError::InvalidAuctionParams);
+        }
+        if min_rate > start_rate {
+            return Err(ContractError::InvalidAuctionParams);
+        }
+        if rate_decay_per_hour == 0 {
+            return Err(ContractError::InvalidAuctionParams);
+        }
+
+        // Validate invoice terms using the start_rate as the discount rate for validation
+        validate_invoice_terms(&env, amount, due_date, start_rate)?;
+
+        // token validation
+        if !is_approved_token(&env, &token) {
+            return Err(ContractError::Unauthorized);
+        }
+
+        let id = next_invoice_id(&env)?;
+
+        // Capture the freelancer's reputation score at submission time
+        let submitter_reputation = get_payer_score(&env, &freelancer);
+        let current_time = env.ledger().timestamp();
+
+        let invoice = Invoice {
+            id,
+            freelancer: freelancer.clone(),
+            payer: payer.clone(),
+            token: token.clone(),
+            amount,
+            due_date: due_date.try_into().unwrap(),
+            discount_rate: start_rate,
+            status: InvoiceStatus::Pending,
+            funder: None,
+            funded_at: None,
+            amount_funded: 0,
+            amount_paid: 0,
+            referral_code: referral_code.clone(),
+            submitter_reputation,
+            // Auction fields
+            is_auction: true,
+            auction_start_rate: Some(start_rate),
+            auction_min_rate: Some(min_rate),
+            auction_rate_decay_per_hour: Some(rate_decay_per_hour),
+            auction_started_at: Some(current_time.try_into().unwrap()),
+        };
+
+        save_invoice(&env, &invoice);
+
+        // Update submitter index
+        add_invoice_to_submitter(&env, &freelancer, id);
+
+        // Increment total invoices counter
+        increment_total_invoices(&env);
+
+        // Increment detailed reputation invoices_submitted count
+        increment_invoices_submitted(&env, &freelancer);
+
+        env.events().publish_event(&AuctionStarted {
+            invoice_id: invoice.id,
+            freelancer: invoice.freelancer.clone(),
+            payer: invoice.payer.clone(),
+            token: invoice.token.clone(),
+            amount: invoice.amount,
+            due_date: u64::from(invoice.due_date),
+            start_rate,
+            min_rate,
+            rate_decay_per_hour,
+            started_at: current_time,
+        });
+
+        // Track referral count if provided
+        if let Some(code) = referral_code {
+            let key = crate::storage::DataKey::ReferralCount(code.clone());
+            let current: u64 = env
+                .storage()
+                .persistent()
+                .get(&key)
+                .unwrap_or(0);
+            env.storage().persistent().set(&key, &(current + 1));
+        }
+
+        Ok(id)
+    }
+
     // ------------------------------------------------------------
     // update_invoice
     // ------------------------------------------------------------
@@ -1053,8 +1171,22 @@ impl InvoiceLiquidityContract {
             normalize_usdc_amount(fund_amount)
         };
 
+        // --- Calculate the effective rate ---
+        // For auction invoices, calculate the current auction rate
+        let effective_rate = if invoice.is_auction {
+            let current_time = env.ledger().timestamp();
+            let auction_started_at = invoice.auction_started_at.unwrap_or(0) as u64;
+            let start_rate = invoice.auction_start_rate.unwrap_or(0);
+            let min_rate = invoice.auction_min_rate.unwrap_or(0);
+            let decay_per_hour = invoice.auction_rate_decay_per_hour.unwrap_or(0);
+
+            calculate_auction_rate(current_time, auction_started_at, start_rate, min_rate, decay_per_hour)
+        } else {
+            invoice.discount_rate
+        };
+
         let fund_discount = normalized_fund_amount
-            .checked_mul(discount_rate_as_i128(invoice.discount_rate))
+            .checked_mul(discount_rate_as_i128(effective_rate))
             .unwrap_or(0)
             / 10_000;
         let cost = normalized_fund_amount - fund_discount;
@@ -1084,7 +1216,7 @@ impl InvoiceLiquidityContract {
             // Fully funded — pay out to freelancer
             let discount_amount = invoice
                 .amount
-                .checked_mul(discount_rate_as_i128(invoice.discount_rate))
+                .checked_mul(discount_rate_as_i128(effective_rate))
                 .unwrap_or(0)
                 / 10_000;
             let freelancer_payout = invoice.amount - discount_amount;
@@ -1126,27 +1258,48 @@ impl InvoiceLiquidityContract {
 
         let days_to_due = seconds_to_due / (24 * 60 * 60);
 
-        let effective_yield_bps = ((invoice.discount_rate as u64 * days_to_due) / 365) as u32;
+        let effective_yield_bps = ((effective_rate as u64 * days_to_due) / 365) as u32;
 
-        env.events().publish_event(&InvoiceFunded {
-            invoice_id: invoice.id,
-            funder: funder.clone(),
-            freelancer: invoice.freelancer.clone(),
-            payer: invoice.payer.clone(),
-            token: invoice.token.clone(),
-            fund_amount,
-            amount_funded: invoice.amount_funded,
-            invoice_amount: invoice.amount,
-            due_date: u64::from(invoice.due_date),
-            discount_rate: invoice.discount_rate,
-            funded_at: invoice.funded_at.map(|ts| ts.into()),
-            status: invoice.status.clone(),
+        // --- Emit appropriate event ---
+        if invoice.is_auction {
+            let hours_elapsed = if let Some(started_at) = invoice.auction_started_at {
+                ((now as u32 - started_at) / 3600) as u32
+            } else {
+                0
+            };
 
-            // NEW
-            lp: funder.clone(),
-            effective_yield_bps,
-            timestamp: now,
-        });
+            env.events().publish_event(&AuctionFunded {
+                invoice_id: invoice.id,
+                funder: funder.clone(),
+                freelancer: invoice.freelancer.clone(),
+                payer: invoice.payer.clone(),
+                token: invoice.token.clone(),
+                fund_amount,
+                effective_rate,
+                hours_elapsed,
+                funded_at: now,
+            });
+        } else {
+            env.events().publish_event(&InvoiceFunded {
+                invoice_id: invoice.id,
+                funder: funder.clone(),
+                freelancer: invoice.freelancer.clone(),
+                payer: invoice.payer.clone(),
+                token: invoice.token.clone(),
+                fund_amount,
+                amount_funded: invoice.amount_funded,
+                invoice_amount: invoice.amount,
+                due_date: u64::from(invoice.due_date),
+                discount_rate: invoice.discount_rate,
+                funded_at: invoice.funded_at.map(|ts| ts.into()),
+                status: invoice.status.clone(),
+
+                // NEW
+                lp: funder.clone(),
+                effective_yield_bps,
+                timestamp: now,
+            });
+        }
 
         Ok(())
     }
