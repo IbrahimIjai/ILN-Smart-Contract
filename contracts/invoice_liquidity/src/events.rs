@@ -312,3 +312,12 @@ pub struct ReputationUpdated {
     pub invoices_paid: u32,
     pub invoices_defaulted: u32,
 }
+
+#[contractevent(topics = ["token_changed"])]
+#[derive(Clone, Debug, PartialEq)]
+pub struct InvoiceTokenChanged {
+    #[topic]
+    pub invoice_id: u64,
+    pub old_token: Address,
+    pub new_token: Address,
+}

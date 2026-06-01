@@ -47,7 +47,7 @@ use events::{
     AdminChanged, AppealResolved, ContractPaused, ContractUnpaused, ContractUpgraded,
     DefaultAppealed, DisputeResolved, FundQueueResolved, FundRequested, InvoiceCancelled,
     InvoiceDefaulted, InvoiceDisputed, InvoiceExpired, InvoiceFunded, InvoicePaid, InvoicePartiallyPaid,
-    InvoiceSubmitted, InvoiceTransferred, InvoiceUpdated, ParameterUpdated, TokenAdded,
+    InvoiceSubmitted, InvoiceTokenChanged, InvoiceTransferred, InvoiceUpdated, ParameterUpdated, TokenAdded,
     TokenRemoved,
 };
 use invoice::{
@@ -562,6 +562,64 @@ impl InvoiceLiquidityContract {
             due_date: u64::from(invoice.due_date),
             discount_rate: invoice.discount_rate,
             status: invoice.status.clone(),
+        });
+
+        Ok(())
+    }
+
+    // ------------------------------------------------------------
+    // convert_invoice_token
+    // ------------------------------------------------------------
+    /// Access: Submitter only
+    pub fn convert_invoice_token(
+        env: Env,
+        freelancer: Address,
+        invoice_id: u64,
+        new_token: Address,
+    ) -> Result<(), ContractError> {
+        if is_paused(&env) {
+            return Err(ContractError::ContractPaused);
+        }
+
+        if !invoice_exists(&env, invoice_id) {
+            return Err(ContractError::InvoiceNotFound);
+        }
+
+        let mut invoice = load_invoice(&env, invoice_id);
+        require_submitter_by_id(&env, &freelancer, invoice_id)?;
+
+        // Only allowed in Pending state
+        if invoice.status != InvoiceStatus::Pending {
+            match invoice.status {
+                InvoiceStatus::PartiallyFunded | InvoiceStatus::Funded => {
+                    return Err(ContractError::AlreadyFunded)
+                }
+                InvoiceStatus::Paid => return Err(ContractError::AlreadyPaid),
+                _ => return Err(ContractError::Unauthorized), // Generic unauthorized for other states
+            }
+        }
+
+        // Check if invoice is expired (mirroring update_invoice logic)
+        if env.ledger().timestamp() >= u64::from(invoice.due_date) {
+            invoice.status = InvoiceStatus::Expired;
+            save_invoice(&env, &invoice);
+            return Err(ContractError::InvoiceExpired);
+        }
+
+        // New token must be in the allowlist
+        if !is_approved_token(&env, &new_token) {
+            return Err(ContractError::Unauthorized);
+        }
+
+        let old_token = invoice.token.clone();
+        invoice.token = new_token.clone();
+
+        save_invoice(&env, &invoice);
+
+        env.events().publish_event(&InvoiceTokenChanged {
+            invoice_id,
+            old_token,
+            new_token,
         });
 
         Ok(())
@@ -1970,3 +2028,5 @@ mod tests_lazy_storage;
 mod tests_reputation_events;
 #[cfg(test)]
 mod tests_discount_invariants;
+#[cfg(test)]
+mod tests_token_switch;
