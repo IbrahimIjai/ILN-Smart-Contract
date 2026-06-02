@@ -1,19 +1,17 @@
 #![no_std]
 
 pub mod config;
+pub mod errors;
 pub mod events;
 pub mod invoice;
 pub mod rate_logic;
 pub mod reputation;
-pub mod errors;
 
-use crate::config::{get_config, set_admin, set_config, update_config, Config, ConfigError};
-use crate::invoice::{get_reputation, set_reputation, submit_invoice, Invoice, InvoiceError};
-use soroban_sdk::{contract, contractimpl, Address, Env};
-use crate::config::{Config, update_config, get_config, set_config, set_admin};
-use crate::invoice::{Invoice, submit_invoice, mark_paid, handle_default};
-use crate::reputation::{read_reputation, ReputationScore};
+use crate::config::{get_config, set_admin, set_config, update_config, Config};
 use crate::errors::ContractError;
+use crate::invoice::{handle_default, mark_paid, submit_invoice, Invoice};
+use crate::reputation::{read_reputation, ReputationScore};
+use soroban_sdk::{contract, contractimpl, Address, Env};
 
 #[contract]
 pub struct ReputationBonusContract;
@@ -39,8 +37,14 @@ impl ReputationBonusContract {
         bonus_bps: u32,
         min_discount_rate_bps: u32,
     ) -> Result<(), ContractError> {
-        update_config(&env, &caller, high_rep_threshold, bonus_bps, min_discount_rate_bps)
-            .map_err(|_| ContractError::ConfigErrorUnauthorized)
+        update_config(
+            &env,
+            &caller,
+            high_rep_threshold,
+            bonus_bps,
+            min_discount_rate_bps,
+        )
+        .map_err(|_| ContractError::ConfigErrorUnauthorized)
     }
 
     pub fn get_reputation(env: Env, address: Address) -> ReputationScore {
@@ -55,7 +59,14 @@ impl ReputationBonusContract {
         due_date: u64,
         base_discount_rate_bps: u32,
     ) -> Result<Invoice, ContractError> {
-        submit_invoice(&env, &freelancer, &payer, amount, due_date, base_discount_rate_bps)
+        submit_invoice(
+            &env,
+            &freelancer,
+            &payer,
+            amount,
+            due_date,
+            base_discount_rate_bps,
+        )
     }
 
     pub fn mark_paid(env: Env, invoice_id: u64) -> Result<(), ContractError> {

@@ -1,0 +1,18 @@
+[package]
+license = "MIT"
+name = "iln_fuzz"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["lib"]
+
+[dependencies]
+soroban-sdk = { workspace = true, features = ["hazmat"] }
+invoice_liquidity = { path = "../invoice_liquidity" }
+
+[dev-dependencies]
+soroban-sdk = { workspace = true, features = ["testutils"] }
+proptest = { workspace = true }
+rand = { workspace = true }

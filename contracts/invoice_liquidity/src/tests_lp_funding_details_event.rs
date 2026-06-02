@@ -1,15 +1,11 @@
 #![cfg(test)]
 
-use crate::{
-    events::InvoiceFunded, InvoiceLiquidityContract, InvoiceLiquidityContractClient, InvoiceStatus,
-};
+use crate::{InvoiceLiquidityContract, InvoiceLiquidityContractClient};
 
 use soroban_sdk::{
     testutils::{Address as _, Events, Ledger},
     token::{Client as TokenClient, StellarAssetClient},
-    xdr::FromXdr,
-    xdr::ToXdr,
-    Address, Env, IntoVal,
+    Address, Env,
 };
 
 #[test]
@@ -35,7 +31,7 @@ fn tests_lp_funding_details_event() {
     let token = env.register_stellar_asset_contract_v2(token_admin.clone());
     let token_address = token.address();
 
-    let token_client = TokenClient::new(&env, &token_address);
+    let _token_client = TokenClient::new(&env, &token_address);
     let token_admin_client = StellarAssetClient::new(&env, &token_address);
 
     // Mint LP funds
@@ -74,7 +70,7 @@ fn tests_lp_funding_details_event() {
     // ------------------------------------------------------------
     // Fund invoice
     // ------------------------------------------------------------
-    client.fund_invoice(&lp, &invoice_id, &5_000_000i128);
+    client.fund_invoice(&lp, &invoice_id, &5_000_000i128, &false);
 
     // ------------------------------------------------------------
     // Verify event emitted

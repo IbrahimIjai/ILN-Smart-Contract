@@ -7,8 +7,7 @@
 
 use super::*;
 use soroban_sdk::{
-    contract,
-    contractimpl,
+    contract, contractimpl,
     testutils::{Address as _, Ledger},
     token::{Client as TokenClient, StellarAssetClient},
     Address, Env,
@@ -18,6 +17,7 @@ const INVOICE_AMOUNT: i128 = 1_000_000_000;
 const DISCOUNT_RATE: u32 = 300;
 const DUE_DATE_OFFSET: u64 = 60 * 60 * 24 * 30; // 30 days
 
+#[allow(dead_code)]
 struct TestEnv {
     env: Env,
     contract: InvoiceLiquidityContractClient<'static>,
@@ -55,7 +55,8 @@ fn setup() -> TestEnv {
     let xlm_contract_id = env.register_stellar_asset_contract_v2(xlm_admin);
     let xlm_address = xlm_contract_id.address();
 
-    contract.initialize(&admin, &usdc_address, &xlm_address);
+    let eurc_address = Address::generate(&env);
+    contract.initialize(&admin, &usdc_address, &eurc_address, &xlm_address);
 
     let mut ledger_info = env.ledger().get();
     ledger_info.timestamp = 1_700_000_000;
@@ -125,7 +126,7 @@ fn test_contract_stats_increments_on_fund() {
     );
 
     t.contract
-        .fund_invoice(&t.funder, &invoice_id, &INVOICE_AMOUNT);
+        .fund_invoice(&t.funder, &invoice_id, &INVOICE_AMOUNT, &false);
 
     let stats = t.contract.get_contract_stats();
     assert_eq!(stats.total_invoices, 1);
@@ -149,7 +150,7 @@ fn test_contract_stats_increments_on_mark_paid() {
     );
 
     t.contract
-        .fund_invoice(&t.funder, &invoice_id, &INVOICE_AMOUNT);
+        .fund_invoice(&t.funder, &invoice_id, &INVOICE_AMOUNT, &false);
     t.contract.mark_paid(&invoice_id, &INVOICE_AMOUNT);
 
     let stats = t.contract.get_contract_stats();
@@ -166,7 +167,7 @@ fn test_contract_stats_multiple_invoices() {
     let due_date = t.env.ledger().timestamp() + DUE_DATE_OFFSET;
 
     // Submit 3 invoices
-    for i in 0..3 {
+    for _i in 0..3 {
         t.contract.submit_invoice(
             &t.freelancer,
             &t.payer,
@@ -208,7 +209,7 @@ fn test_contract_stats_tracks_token_volumes_and_oracle_normalization() {
     );
 
     t.contract
-        .fund_invoice(&t.funder, &invoice_id, &INVOICE_AMOUNT);
+        .fund_invoice(&t.funder, &invoice_id, &INVOICE_AMOUNT, &false);
     t.contract.mark_paid(&invoice_id, &INVOICE_AMOUNT);
 
     let stats = t.contract.get_contract_stats();
@@ -221,10 +222,17 @@ fn test_contract_stats_tracks_token_volumes_and_oracle_normalization() {
     assert_eq!(stats.total_volume_usd_normalized, 0);
 
     let oracle_id = t.env.register(MockPriceOracle, ());
-    t.contract.set_price_oracle(&oracle_id.address());
+    t.env.as_contract(&t.contract.address, || {
+        let mut config = crate::storage::get_config(&t.env).unwrap();
+        config.price_oracle = Some(oracle_id.clone());
+        crate::storage::set_config(&t.env, &config);
+    });
 
     let stats = t.contract.get_contract_stats();
-    assert_eq!(stats.total_volume_usd_normalized, INVOICE_AMOUNT * 20_000 / 10_000);
+    assert_eq!(
+        stats.total_volume_usd_normalized,
+        INVOICE_AMOUNT * 20_000 / 10_000
+    );
 }
 
 // ================================================================
@@ -290,7 +298,7 @@ fn test_pause_blocks_mark_paid() {
     );
 
     t.contract
-        .fund_invoice(&t.funder, &invoice_id, &INVOICE_AMOUNT);
+        .fund_invoice(&t.funder, &invoice_id, &INVOICE_AMOUNT, &false);
     t.contract.pause();
 
     let result = t.contract.try_mark_paid(&invoice_id, &INVOICE_AMOUNT);
@@ -336,7 +344,7 @@ fn test_pause_blocks_claim_default() {
     );
 
     t.contract
-        .fund_invoice(&t.funder, &invoice_id, &INVOICE_AMOUNT);
+        .fund_invoice(&t.funder, &invoice_id, &INVOICE_AMOUNT, &false);
 
     // Advance time past due date
     let mut ledger = t.env.ledger().get();
@@ -376,7 +384,7 @@ fn test_pause_non_admin_fails() {
     let t = setup();
 
     // Create a non-admin address
-    let non_admin = Address::generate(&t.env);
+    let _non_admin = Address::generate(&t.env);
 
     // We need to test that non-admin cannot pause
     // Since we're using mock_all_auths, we need to manually test this
@@ -390,7 +398,7 @@ fn test_unpause_non_admin_fails() {
     t.contract.pause();
 
     // Create a non-admin address
-    let non_admin = Address::generate(&t.env);
+    let _non_admin = Address::generate(&t.env);
 
     // We need to test that non-admin cannot unpause
     // Since we're using mock_all_auths, we need to manually test this

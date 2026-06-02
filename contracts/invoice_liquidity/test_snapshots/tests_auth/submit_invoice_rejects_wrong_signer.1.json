@@ -408,6 +408,81 @@
                       "key": {
                         "vec": [
                           {
+                            "symbol": "Config"
+                          }
+                        ]
+                      },
+                      "val": {
+                        "map": [
+                          {
+                            "key": {
+                              "symbol": "bonus_bps"
+                            },
+                            "val": {
+                              "u32": 100
+                            }
+                          },
+                          {
+                            "key": {
+                              "symbol": "decay_period_ledgers"
+                            },
+                            "val": {
+                              "u64": "10000"
+                            }
+                          },
+                          {
+                            "key": {
+                              "symbol": "decay_rate_bps"
+                            },
+                            "val": {
+                              "u32": 50
+                            }
+                          },
+                          {
+                            "key": {
+                              "symbol": "dispute_timeout_ledgers"
+                            },
+                            "val": {
+                              "u64": "10000"
+                            }
+                          },
+                          {
+                            "key": {
+                              "symbol": "high_rep_threshold"
+                            },
+                            "val": {
+                              "u32": 70
+                            }
+                          },
+                          {
+                            "key": {
+                              "symbol": "min_discount_rate_bps"
+                            },
+                            "val": {
+                              "u32": 100
+                            }
+                          },
+                          {
+                            "key": {
+                              "symbol": "price_oracle"
+                            },
+                            "val": "void"
+                          },
+                          {
+                            "key": {
+                              "symbol": "xlm_sac_address"
+                            },
+                            "val": {
+                              "address": "CD3FXVGYSLQFFTW3UH6WFF2OKZH7VERGZJZAMJHTGHBWO4F6URWEJL23"
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "key": {
+                        "vec": [
+                          {
                             "symbol": "FeeRate"
                           }
                         ]
@@ -426,6 +501,18 @@
                       },
                       "val": {
                         "u32": 5000
+                      }
+                    },
+                    {
+                      "key": {
+                        "vec": [
+                          {
+                            "symbol": "NextInvoiceId"
+                          }
+                        ]
+                      },
+                      "val": {
+                        "u64": "1"
                       }
                     }
                   ]

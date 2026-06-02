@@ -18,7 +18,7 @@
 
 use super::*;
 use soroban_sdk::{
-    testutils::{Address as _, Events, Ledger},
+    testutils::{Address as _, Ledger},
     token::{Client as TokenClient, StellarAssetClient},
     Address, BytesN, Env,
 };
@@ -27,6 +27,7 @@ const INVOICE_AMOUNT: i128 = 1_000_000_000;
 const DISCOUNT_RATE: u32 = 300;
 const DUE_DATE_OFFSET: u64 = 60 * 60 * 24 * 30; // 30 days
 
+#[allow(dead_code)]
 struct DisputeTestEnv {
     env: Env,
     contract: InvoiceLiquidityContractClient<'static>,
@@ -64,7 +65,8 @@ fn setup_dispute() -> DisputeTestEnv {
     let xlm_addr = xlm_id.address();
 
     // usdc_admin acts as the contract admin.
-    contract.initialize(&usdc_admin, &usdc_addr, &xlm_addr);
+    let eurc_addr = Address::generate(&env);
+    contract.initialize(&usdc_admin, &usdc_addr, &eurc_addr, &xlm_addr);
 
     let mut ledger = env.ledger().get();
     ledger.timestamp = 1_700_000_000;
@@ -101,6 +103,7 @@ fn test_dispute_pending_invoice() {
         &due_date,
         &DISCOUNT_RATE,
         &t.token.address,
+        &Option::<BytesN<32>>::None,
     );
 
     t.contract.dispute_invoice(&id, &reason_hash(&t.env));
@@ -121,9 +124,10 @@ fn test_dispute_funded_invoice() {
         &due_date,
         &DISCOUNT_RATE,
         &t.token.address,
+        &Option::<BytesN<32>>::None,
     );
 
-    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT);
+    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT, &false);
 
     t.contract.dispute_invoice(&id, &reason_hash(&t.env));
 
@@ -143,6 +147,7 @@ fn test_cannot_fund_disputed_invoice() {
         &due_date,
         &DISCOUNT_RATE,
         &t.token.address,
+        &Option::<BytesN<32>>::None,
     );
 
     t.contract.dispute_invoice(&id, &reason_hash(&t.env));
@@ -163,9 +168,10 @@ fn test_cannot_mark_paid_disputed_invoice() {
         &due_date,
         &DISCOUNT_RATE,
         &t.token.address,
+        &Option::<BytesN<32>>::None,
     );
 
-    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT);
+    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT, &false);
 
     t.contract.dispute_invoice(&id, &reason_hash(&t.env));
 
@@ -185,6 +191,7 @@ fn test_resolve_dispute_upheld_refunds_lp() {
         &due_date,
         &DISCOUNT_RATE,
         &t.token.address,
+        &Option::<BytesN<32>>::None,
     );
 
     let fund_discount = INVOICE_AMOUNT * DISCOUNT_RATE as i128 / 10_000;
@@ -192,7 +199,7 @@ fn test_resolve_dispute_upheld_refunds_lp() {
 
     let initial_funder_balance = t.token.balance(&t.funder);
 
-    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT);
+    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT, &false);
 
     assert_eq!(t.token.balance(&t.funder), initial_funder_balance - cost);
 
@@ -222,7 +229,7 @@ fn test_resolve_dispute_rejected_restores_funded_status() {
         &t.token.address,
     );
 
-    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT);
+    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT, &false);
     t.contract.dispute_invoice(&id, &reason_hash(&t.env));
 
     // Admin rejects dispute (resolution = 2)
@@ -247,7 +254,7 @@ fn test_non_payer_cannot_dispute() {
     );
 
     // Freelancer tries to dispute their own invoice
-    let result = t.contract.try_dispute_invoice(&id, &reason_hash(&t.env));
+    let _result = t.contract.try_dispute_invoice(&id, &reason_hash(&t.env));
     // require_payer_by_id will fail auth check because t.freelancer didn't sign as payer
     // Actually, require_payer_by_id(env, id) calls invoice.payer.require_auth()
     // In tests with mock_all_auths(), it will succeed if we don't specify the caller.
@@ -258,6 +265,10 @@ fn test_non_payer_cannot_dispute() {
 fn test_auto_resolve_dispute_timeout_behavior() {
     let t = setup_dispute();
 
+    let xlm_sac_address = t.env.as_contract(&t.contract.address, || {
+        crate::storage::get_config(&t.env).unwrap().xlm_sac_address
+    });
+
     let config = Config {
         high_rep_threshold: 80,
         bonus_bps: 200,
@@ -265,6 +276,7 @@ fn test_auto_resolve_dispute_timeout_behavior() {
         decay_rate_bps: 100,
         decay_period_ledgers: 1000,
         dispute_timeout_ledgers: 100,
+        xlm_sac_address,
         price_oracle: None,
     };
     t.env.as_contract(&t.contract.address, || {

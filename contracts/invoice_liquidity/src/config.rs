@@ -1,4 +1,3 @@
-use crate::errors::ContractError;
 use crate::events::ParameterUpdated;
 use soroban_sdk::{contracttype, Address, Env, Symbol};
 
@@ -12,7 +11,13 @@ pub struct Config {
     pub decay_period_ledgers: u64, // Ledger count between decay applications
     pub dispute_timeout_ledgers: u64, // Ledger count after which a dispute can be auto-resolved
     pub xlm_sac_address: Address, // Stellar Asset Contract address for native XLM wrapper
+    pub usdc_sac_address: Address, // USDC contract address
+    pub eurc_sac_address: Address, // EURC contract address
     pub price_oracle: Option<Address>, // Optional price oracle for USD normalisation
+    /// Maximum acceptable oracle data age in ledgers before fund_invoice rejects it.
+    /// Default: 17_280 (≈ 24 hours at one ledger per 5 seconds).
+    /// Updatable by governance via set_max_oracle_age().
+    pub max_oracle_age_ledgers: u64,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -24,6 +29,7 @@ pub enum ConfigError {
 
 const MAX_BONUS_BPS: u32 = 500;
 
+#[allow(clippy::too_many_arguments)]
 pub fn update_config(
     env: &Env,
     caller: &Address,
@@ -34,6 +40,8 @@ pub fn update_config(
     decay_period_ledgers: u64,
     dispute_timeout_ledgers: u64,
     xlm_sac_address: Address,
+    usdc_sac_address: Address,
+    eurc_sac_address: Address,
 ) -> Result<(), ConfigError> {
     let admin = crate::storage::get_admin(env).ok_or(ConfigError::Unauthorized)?;
     let old_config = crate::storage::get_config(env).ok_or(ConfigError::Unauthorized)?;
@@ -57,7 +65,10 @@ pub fn update_config(
         decay_period_ledgers,
         dispute_timeout_ledgers,
         xlm_sac_address,
+        usdc_sac_address,
+        eurc_sac_address,
         price_oracle: old_config.price_oracle,
+        max_oracle_age_ledgers: old_config.max_oracle_age_ledgers,
     };
 
     crate::storage::set_config(env, &new_config);
@@ -102,19 +113,31 @@ pub fn update_config(
     Ok(())
 }
 
-pub fn set_price_oracle(
-    env: &Env,
-    caller: &Address,
-    oracle: Address,
-) -> Result<(), ConfigError> {
+pub fn set_price_oracle(env: &Env, caller: &Address, oracle: Address) -> Result<(), ConfigError> {
     let admin = crate::storage::get_admin(env).ok_or(ConfigError::Unauthorized)?;
     let mut config = crate::storage::get_config(env).ok_or(ConfigError::Unauthorized)?;
-    caller.require_auth();
     if caller != &admin {
         return Err(ConfigError::Unauthorized);
     }
 
     config.price_oracle = Some(oracle);
+    crate::storage::set_config(env, &config);
+    Ok(())
+}
+
+/// Update the maximum oracle data age (in ledgers). Admin only.
+pub fn set_max_oracle_age(
+    env: &Env,
+    caller: &Address,
+    max_age_ledgers: u64,
+) -> Result<(), ConfigError> {
+    let admin = crate::storage::get_admin(env).ok_or(ConfigError::Unauthorized)?;
+    let mut config = crate::storage::get_config(env).ok_or(ConfigError::Unauthorized)?;
+    if caller != &admin {
+        return Err(ConfigError::Unauthorized);
+    }
+
+    config.max_oracle_age_ledgers = max_age_ledgers;
     crate::storage::set_config(env, &config);
     Ok(())
 }

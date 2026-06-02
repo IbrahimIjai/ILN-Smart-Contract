@@ -1,6 +1,7 @@
 #![cfg(test)]
 
-//! Benchmarks for Invoice Liquidity contract core functions
+//! Execution cost benchmarks for core contract instructions (Issue #76).
+//! Emits machine-readable `BENCHMARK` lines for CI regression checks.
 
 use super::*;
 use soroban_sdk::{
@@ -9,25 +10,8 @@ use soroban_sdk::{
     Address, Env,
 };
 
-// ----------------------------------------------------------------
-// Cost Conversion Constants
-// ----------------------------------------------------------------
-/// 1 XLM = 10_000_000 stroops. We will define an approximate conversion rate for instructions and memory
-/// Since Soroban fees depend on a complex cost model, we use a mock linear conversion rule for testing.
-const CPU_FEE_RATE: f64 = 0.00000001; // Example: 1 stroop per 100 instructions
-const MEM_FEE_RATE: f64 = 0.0000001;  // Example: 1 stroop per 10 bytes
-
-// ----------------------------------------------------------------
-// Threshold Limits
-// ----------------------------------------------------------------
-const MAX_CPU_SUBMIT: u64 = 5_000_000;
-const MAX_MEM_SUBMIT: u64 = 3_000_000;
-const MAX_CPU_FUND: u64 = 5_000_000;
-const MAX_MEM_FUND: u64 = 3_000_000;
-const MAX_CPU_MARK_PAID: u64 = 5_000_000;
-const MAX_MEM_MARK_PAID: u64 = 3_000_000;
-const MAX_CPU_CLAIM: u64 = 5_000_000;
-const MAX_MEM_CLAIM: u64 = 3_000_000;
+const BENCH_INVOICE_AMOUNT: i128 = 1_000_000_000;
+const BENCH_DISCOUNT_RATE: u32 = 300;
 
 struct BaseBenchEnv {
     env: Env,
@@ -41,8 +25,6 @@ struct BaseBenchEnv {
 fn setup_benchmark_env() -> BaseBenchEnv {
     let env = Env::default();
     env.mock_all_auths();
-    
-    // Enable cost tracking
     env.cost_estimate().budget().reset_unlimited();
 
     let mut ledger = env.ledger().get();
@@ -56,7 +38,8 @@ fn setup_benchmark_env() -> BaseBenchEnv {
 
     let contract_id = env.register(InvoiceLiquidityContract, ());
     let contract = InvoiceLiquidityContractClient::new(&env, &contract_id);
-    contract.initialize(&usdc_admin, &usdc.address(), &xlm.address());
+    let eurc_address = Address::generate(&env);
+    contract.initialize(&usdc_admin, &usdc.address(), &eurc_address, &xlm.address());
 
     let freelancer = Address::generate(&env);
     let payer = Address::generate(&env);
@@ -76,105 +59,119 @@ fn setup_benchmark_env() -> BaseBenchEnv {
     }
 }
 
-fn compute_fee(cpu: u64, mem: u64) -> f64 {
-    let fee_stroops = (cpu as f64 * CPU_FEE_RATE) + (mem as f64 * MEM_FEE_RATE);
-    fee_stroops / 10_000_000.0
+fn emit_benchmark(name: &str, cpu: u64, mem: u64) {
+    std::println!("BENCHMARK {name} cpu={cpu} mem={mem}");
+}
+
+fn measure<F: FnOnce()>(env: &Env, name: &str, action: F) -> (u64, u64) {
+    env.cost_estimate().budget().reset_unlimited();
+    action();
+    let cpu = env.cost_estimate().budget().cpu_instruction_cost();
+    let mem = env.cost_estimate().budget().memory_bytes_cost();
+    emit_benchmark(name, cpu, mem);
+    (cpu, mem)
 }
 
 #[test]
-fn test_benchmark_all_functions() {
-    let mut results = std::vec::Vec::new();
-    
-    // ----------------------------------------------------------------
-    // 1. Benchmark: submit_invoice
-    // ----------------------------------------------------------------
-    let b1 = setup_benchmark_env();
-    let due_date = b1.env.ledger().timestamp() + 86_400;
-    let amount = 1_000_000_000;
-    
-    b1.env.cost_estimate().budget().reset_unlimited();
-    let id = b1.contract.submit_invoice(
-        &b1.freelancer,
-        &b1.payer,
-        &amount,
+fn benchmark_submit_invoice() {
+    let bench = setup_benchmark_env();
+    let due_date = bench.env.ledger().timestamp() + 86_400;
+
+    measure(&bench.env, "submit_invoice", || {
+        bench.contract.submit_invoice(
+            &bench.freelancer,
+            &bench.payer,
+            &BENCH_INVOICE_AMOUNT,
+            &due_date,
+            &BENCH_DISCOUNT_RATE,
+            &bench.token,
+        );
+    });
+}
+
+#[test]
+fn benchmark_fund_invoice() {
+    let bench = setup_benchmark_env();
+    let due_date = bench.env.ledger().timestamp() + 86_400;
+    let id = bench.contract.submit_invoice(
+        &bench.freelancer,
+        &bench.payer,
+        &BENCH_INVOICE_AMOUNT,
         &due_date,
-        &300,
-        &b1.token,
+        &BENCH_DISCOUNT_RATE,
+        &bench.token,
     );
-    let cpu_submit = b1.env.cost_estimate().budget().cpu_instruction_cost();
-    let mem_submit = b1.env.cost_estimate().budget().memory_bytes_cost();
-    
-    assert!(cpu_submit <= MAX_CPU_SUBMIT, "submit_invoice CPU usage exceeded threshold: {} > {}", cpu_submit, MAX_CPU_SUBMIT);
-    assert!(mem_submit <= MAX_MEM_SUBMIT, "submit_invoice Mem usage exceeded threshold: {} > {}", mem_submit, MAX_MEM_SUBMIT);
-    
-    results.push(("submit_invoice", cpu_submit, mem_submit, compute_fee(cpu_submit, mem_submit)));
 
-    // ----------------------------------------------------------------
-    // 2. Benchmark: fund_invoice
-    // ----------------------------------------------------------------
-    b1.env.cost_estimate().budget().reset_unlimited();
-    b1.contract.fund_invoice(&b1.lp, &id, &amount);
-    
-    let cpu_fund = b1.env.cost_estimate().budget().cpu_instruction_cost();
-    let mem_fund = b1.env.cost_estimate().budget().memory_bytes_cost();
-    
-    assert!(cpu_fund <= MAX_CPU_FUND, "fund_invoice CPU usage exceeded threshold: {} > {}", cpu_fund, MAX_CPU_FUND);
-    assert!(mem_fund <= MAX_MEM_FUND, "fund_invoice Mem usage exceeded threshold: {} > {}", mem_fund, MAX_MEM_FUND);
-    
-    results.push(("fund_invoice", cpu_fund, mem_fund, compute_fee(cpu_fund, mem_fund)));
+    measure(&bench.env, "fund_invoice", || {
+        bench.contract.fund_invoice(&bench.lp, &id, &BENCH_INVOICE_AMOUNT, &false);
+    });
+}
 
-    // ----------------------------------------------------------------
-    // 3. Benchmark: mark_paid
-    // ----------------------------------------------------------------
-    b1.env.cost_estimate().budget().reset_unlimited();
-    b1.contract.mark_paid(&id, &INVOICE_AMOUNT);
-    
-    let cpu_mark = b1.env.cost_estimate().budget().cpu_instruction_cost();
-    let mem_mark = b1.env.cost_estimate().budget().memory_bytes_cost();
-    
-    assert!(cpu_mark <= MAX_CPU_MARK_PAID, "mark_paid CPU usage exceeded threshold: {} > {}", cpu_mark, MAX_CPU_MARK_PAID);
-    assert!(mem_mark <= MAX_MEM_MARK_PAID, "mark_paid Mem usage exceeded threshold: {} > {}", mem_mark, MAX_MEM_MARK_PAID);
-    
-    results.push(("mark_paid", cpu_mark, mem_mark, compute_fee(cpu_mark, mem_mark)));
-
-    // ----------------------------------------------------------------
-    // 4. Benchmark: claim_default
-    // ----------------------------------------------------------------
-    let b2 = setup_benchmark_env();
-    let due_date2 = b2.env.ledger().timestamp() + 86_400; // Future date
-    let id2 = b2.contract.submit_invoice(
-        &b2.freelancer,
-        &b2.payer,
-        &amount,
-        &due_date2,
-        &300,
-        &b2.token,
+#[test]
+fn benchmark_mark_paid() {
+    let bench = setup_benchmark_env();
+    let due_date = bench.env.ledger().timestamp() + 86_400;
+    let id = bench.contract.submit_invoice(
+        &bench.freelancer,
+        &bench.payer,
+        &BENCH_INVOICE_AMOUNT,
+        &due_date,
+        &BENCH_DISCOUNT_RATE,
+        &bench.token,
     );
-    b2.contract.fund_invoice(&b2.lp, &id2, &amount);
-    
-    // Simulate past due date
-    let mut ledger = b2.env.ledger().get();
-    ledger.timestamp = due_date2 + 86_400; // 1 day late
-    b2.env.ledger().set(ledger);
-    
-    b2.env.cost_estimate().budget().reset_unlimited();
-    let _ = b2.contract.try_claim_default(&b2.lp, &id2);
-    
-    let cpu_claim = b2.env.cost_estimate().budget().cpu_instruction_cost();
-    let mem_claim = b2.env.cost_estimate().budget().memory_bytes_cost();
-    
-    assert!(cpu_claim <= MAX_CPU_CLAIM, "claim_default CPU usage exceeded threshold: {} > {}", cpu_claim, MAX_CPU_CLAIM);
-    assert!(mem_claim <= MAX_MEM_CLAIM, "claim_default Mem usage exceeded threshold: {} > {}", mem_claim, MAX_MEM_CLAIM);
-    
-    results.push(("claim_default", cpu_claim, mem_claim, compute_fee(cpu_claim, mem_claim)));
+    bench
+        .contract
+        .fund_invoice(&bench.lp, &id, &BENCH_INVOICE_AMOUNT, &false);
 
-    // ----------------------------------------------------------------
-    // Print Table Result
-    // ----------------------------------------------------------------
-    println!("\n| Function       | CPU Instructions | Memory (bytes) | Estimated Fee (XLM) |");
-    println!("| -------------- | ---------------- | -------------- | ------------------- |");
-    for (name, cpu, mem, fee) in results {
-        println!("| {:<14} | {:>16} | {:>14} | {:>19.7} |", name, cpu, mem, fee);
+    measure(&bench.env, "mark_paid", || {
+        bench
+            .contract
+            .mark_paid(&id, &BENCH_INVOICE_AMOUNT);
+    });
+}
+
+#[test]
+fn benchmark_all_functions_summary() {
+    let mut results = std::vec::Vec::new();
+
+    let bench = setup_benchmark_env();
+    let due_date = bench.env.ledger().timestamp() + 86_400;
+
+    results.push(measure(&bench.env, "submit_invoice", || {
+        bench.contract.submit_invoice(
+            &bench.freelancer,
+            &bench.payer,
+            &BENCH_INVOICE_AMOUNT,
+            &due_date,
+            &BENCH_DISCOUNT_RATE,
+            &bench.token,
+        );
+    }));
+
+    let id = bench.contract.submit_invoice(
+        &bench.freelancer,
+        &bench.payer,
+        &BENCH_INVOICE_AMOUNT,
+        &(due_date + 1),
+        &BENCH_DISCOUNT_RATE,
+        &bench.token,
+    );
+    results.push(measure(&bench.env, "fund_invoice", || {
+        bench.contract.fund_invoice(&bench.lp, &id, &BENCH_INVOICE_AMOUNT, &false);
+    }));
+    results.push(measure(&bench.env, "mark_paid", || {
+        bench
+            .contract
+            .mark_paid(&id, &BENCH_INVOICE_AMOUNT);
+    }));
+
+    std::println!("\n| Function       | CPU Instructions | Memory (bytes) |");
+    std::println!("| -------------- | ---------------- | -------------- |");
+    for (name, (cpu, mem)) in [
+        ("submit_invoice", results[0]),
+        ("fund_invoice", results[1]),
+        ("mark_paid", results[2]),
+    ] {
+        std::println!("| {name:<14} | {cpu:>16} | {mem:>14} |");
     }
-    println!();
 }

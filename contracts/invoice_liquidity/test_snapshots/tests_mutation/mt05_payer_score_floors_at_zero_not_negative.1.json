@@ -1997,7 +1997,7 @@
                       "symbol": "due_date"
                     },
                     "val": {
-                      "u64": "1702592000"
+                      "u32": 1702592000
                     }
                   },
                   {
@@ -2013,7 +2013,7 @@
                       "symbol": "funded_at"
                     },
                     "val": {
-                      "u64": "1700000000"
+                      "u32": 1700000000
                     }
                   },
                   {
@@ -2050,6 +2050,14 @@
                           "symbol": "Defaulted"
                         }
                       ]
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "submitter_reputation"
+                    },
+                    "val": {
+                      "u32": 50
                     }
                   },
                   {
@@ -2125,7 +2133,7 @@
                       "symbol": "due_date"
                     },
                     "val": {
-                      "u64": "1705184001"
+                      "u32": 1705184001
                     }
                   },
                   {
@@ -2141,7 +2149,7 @@
                       "symbol": "funded_at"
                     },
                     "val": {
-                      "u64": "1702592001"
+                      "u32": 1702592001
                     }
                   },
                   {
@@ -2178,6 +2186,14 @@
                           "symbol": "Defaulted"
                         }
                       ]
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "submitter_reputation"
+                    },
+                    "val": {
+                      "u32": 50
                     }
                   },
                   {
@@ -2253,7 +2269,7 @@
                       "symbol": "due_date"
                     },
                     "val": {
-                      "u64": "1707776002"
+                      "u32": 1707776002
                     }
                   },
                   {
@@ -2269,7 +2285,7 @@
                       "symbol": "funded_at"
                     },
                     "val": {
-                      "u64": "1705184002"
+                      "u32": 1705184002
                     }
                   },
                   {
@@ -2306,6 +2322,14 @@
                           "symbol": "Defaulted"
                         }
                       ]
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "submitter_reputation"
+                    },
+                    "val": {
+                      "u32": 50
                     }
                   },
                   {
@@ -2381,7 +2405,7 @@
                       "symbol": "due_date"
                     },
                     "val": {
-                      "u64": "1710368003"
+                      "u32": 1710368003
                     }
                   },
                   {
@@ -2397,7 +2421,7 @@
                       "symbol": "funded_at"
                     },
                     "val": {
-                      "u64": "1707776003"
+                      "u32": 1707776003
                     }
                   },
                   {
@@ -2434,6 +2458,14 @@
                           "symbol": "Defaulted"
                         }
                       ]
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "submitter_reputation"
+                    },
+                    "val": {
+                      "u32": 50
                     }
                   },
                   {
@@ -2509,7 +2541,7 @@
                       "symbol": "due_date"
                     },
                     "val": {
-                      "u64": "1712960004"
+                      "u32": 1712960004
                     }
                   },
                   {
@@ -2525,7 +2557,7 @@
                       "symbol": "funded_at"
                     },
                     "val": {
-                      "u64": "1710368004"
+                      "u32": 1710368004
                     }
                   },
                   {
@@ -2562,6 +2594,14 @@
                           "symbol": "Defaulted"
                         }
                       ]
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "submitter_reputation"
+                    },
+                    "val": {
+                      "u32": 50
                     }
                   },
                   {
@@ -2637,7 +2677,7 @@
                       "symbol": "due_date"
                     },
                     "val": {
-                      "u64": "1715552005"
+                      "u32": 1715552005
                     }
                   },
                   {
@@ -2653,7 +2693,7 @@
                       "symbol": "funded_at"
                     },
                     "val": {
-                      "u64": "1712960005"
+                      "u32": 1712960005
                     }
                   },
                   {
@@ -2690,6 +2730,14 @@
                           "symbol": "Defaulted"
                         }
                       ]
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "submitter_reputation"
+                    },
+                    "val": {
+                      "u32": 50
                     }
                   },
                   {
@@ -2765,7 +2813,7 @@
                       "symbol": "due_date"
                     },
                     "val": {
-                      "u64": "1718144006"
+                      "u32": 1718144006
                     }
                   },
                   {
@@ -2781,7 +2829,7 @@
                       "symbol": "funded_at"
                     },
                     "val": {
-                      "u64": "1715552006"
+                      "u32": 1715552006
                     }
                   },
                   {
@@ -2818,6 +2866,14 @@
                           "symbol": "Defaulted"
                         }
                       ]
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "submitter_reputation"
+                    },
+                    "val": {
+                      "u32": 50
                     }
                   },
                   {
@@ -2893,7 +2949,7 @@
                       "symbol": "due_date"
                     },
                     "val": {
-                      "u64": "1720736007"
+                      "u32": 1720736007
                     }
                   },
                   {
@@ -2909,7 +2965,7 @@
                       "symbol": "funded_at"
                     },
                     "val": {
-                      "u64": "1718144007"
+                      "u32": 1718144007
                     }
                   },
                   {
@@ -2946,6 +3002,14 @@
                           "symbol": "Defaulted"
                         }
                       ]
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "submitter_reputation"
+                    },
+                    "val": {
+                      "u32": 50
                     }
                   },
                   {
@@ -3021,7 +3085,7 @@
                       "symbol": "due_date"
                     },
                     "val": {
-                      "u64": "1723328008"
+                      "u32": 1723328008
                     }
                   },
                   {
@@ -3037,7 +3101,7 @@
                       "symbol": "funded_at"
                     },
                     "val": {
-                      "u64": "1720736008"
+                      "u32": 1720736008
                     }
                   },
                   {
@@ -3074,6 +3138,14 @@
                           "symbol": "Defaulted"
                         }
                       ]
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "submitter_reputation"
+                    },
+                    "val": {
+                      "u32": 50
                     }
                   },
                   {
@@ -3149,7 +3221,7 @@
                       "symbol": "due_date"
                     },
                     "val": {
-                      "u64": "1725920009"
+                      "u32": 1725920009
                     }
                   },
                   {
@@ -3165,7 +3237,7 @@
                       "symbol": "funded_at"
                     },
                     "val": {
-                      "u64": "1723328009"
+                      "u32": 1723328009
                     }
                   },
                   {
@@ -3206,6 +3278,14 @@
                   },
                   {
                     "key": {
+                      "symbol": "submitter_reputation"
+                    },
+                    "val": {
+                      "u32": 50
+                    }
+                  },
+                  {
+                    "key": {
                       "symbol": "token"
                     },
                     "val": {
@@ -3213,30 +3293,6 @@
                     }
                   }
                 ]
-              }
-            }
-          },
-          "ext": "v0"
-        },
-        "live_until": 2000000
-      },
-      {
-        "entry": {
-          "last_modified_ledger_seq": 0,
-          "data": {
-            "contract_data": {
-              "ext": "v0",
-              "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMDR4",
-              "key": {
-                "vec": [
-                  {
-                    "symbol": "InvoiceCount"
-                  }
-                ]
-              },
-              "durability": "persistent",
-              "val": {
-                "u64": "10"
               }
             }
           },
@@ -4033,6 +4089,142 @@
               "key": {
                 "vec": [
                   {
+                    "symbol": "Reputation"
+                  },
+                  {
+                    "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
+                  }
+                ]
+              },
+              "durability": "persistent",
+              "val": {
+                "map": [
+                  {
+                    "key": {
+                      "symbol": "address"
+                    },
+                    "val": {
+                      "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "invoices_defaulted"
+                    },
+                    "val": {
+                      "u32": 0
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "invoices_paid"
+                    },
+                    "val": {
+                      "u32": 0
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "invoices_submitted"
+                    },
+                    "val": {
+                      "u32": 10
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "score"
+                    },
+                    "val": {
+                      "u32": 0
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "ext": "v0"
+        },
+        "live_until": 2000000
+      },
+      {
+        "entry": {
+          "last_modified_ledger_seq": 0,
+          "data": {
+            "contract_data": {
+              "ext": "v0",
+              "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMDR4",
+              "key": {
+                "vec": [
+                  {
+                    "symbol": "Reputation"
+                  },
+                  {
+                    "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
+                  }
+                ]
+              },
+              "durability": "persistent",
+              "val": {
+                "map": [
+                  {
+                    "key": {
+                      "symbol": "address"
+                    },
+                    "val": {
+                      "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "invoices_defaulted"
+                    },
+                    "val": {
+                      "u32": 10
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "invoices_paid"
+                    },
+                    "val": {
+                      "u32": 0
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "invoices_submitted"
+                    },
+                    "val": {
+                      "u32": 0
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "score"
+                    },
+                    "val": {
+                      "u32": 0
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "ext": "v0"
+        },
+        "live_until": 2000000
+      },
+      {
+        "entry": {
+          "last_modified_ledger_seq": 0,
+          "data": {
+            "contract_data": {
+              "ext": "v0",
+              "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMDR4",
+              "key": {
+                "vec": [
+                  {
                     "symbol": "SubmitterInvoices"
                   },
                   {
@@ -4111,6 +4303,78 @@
           "ext": "v0"
         },
         "live_until": 4095
+      },
+      {
+        "entry": {
+          "last_modified_ledger_seq": 0,
+          "data": {
+            "contract_data": {
+              "ext": "v0",
+              "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMDR4",
+              "key": {
+                "vec": [
+                  {
+                    "symbol": "TokenVolume"
+                  },
+                  {
+                    "address": "CBEPDNVYXQGWB5YUBXKJWYJA7OXTZW5LFLNO5JRRGE6Z6C5OSUZPCCEL"
+                  }
+                ]
+              },
+              "durability": "persistent",
+              "val": {
+                "i128": "10000000000"
+              }
+            }
+          },
+          "ext": "v0"
+        },
+        "live_until": 4095
+      },
+      {
+        "entry": {
+          "last_modified_ledger_seq": 0,
+          "data": {
+            "contract_data": {
+              "ext": "v0",
+              "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMDR4",
+              "key": {
+                "vec": [
+                  {
+                    "symbol": "TopPayersHeap"
+                  }
+                ]
+              },
+              "durability": "persistent",
+              "val": {
+                "vec": [
+                  {
+                    "map": [
+                      {
+                        "key": {
+                          "symbol": "address"
+                        },
+                        "val": {
+                          "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
+                        }
+                      },
+                      {
+                        "key": {
+                          "symbol": "score"
+                        },
+                        "val": {
+                          "u32": 0
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          "ext": "v0"
+        },
+        "live_until": 2000000
       },
       {
         "entry": {
@@ -4215,6 +4479,81 @@
                       "key": {
                         "vec": [
                           {
+                            "symbol": "Config"
+                          }
+                        ]
+                      },
+                      "val": {
+                        "map": [
+                          {
+                            "key": {
+                              "symbol": "bonus_bps"
+                            },
+                            "val": {
+                              "u32": 100
+                            }
+                          },
+                          {
+                            "key": {
+                              "symbol": "decay_period_ledgers"
+                            },
+                            "val": {
+                              "u64": "10000"
+                            }
+                          },
+                          {
+                            "key": {
+                              "symbol": "decay_rate_bps"
+                            },
+                            "val": {
+                              "u32": 50
+                            }
+                          },
+                          {
+                            "key": {
+                              "symbol": "dispute_timeout_ledgers"
+                            },
+                            "val": {
+                              "u64": "10000"
+                            }
+                          },
+                          {
+                            "key": {
+                              "symbol": "high_rep_threshold"
+                            },
+                            "val": {
+                              "u32": 70
+                            }
+                          },
+                          {
+                            "key": {
+                              "symbol": "min_discount_rate_bps"
+                            },
+                            "val": {
+                              "u32": 100
+                            }
+                          },
+                          {
+                            "key": {
+                              "symbol": "price_oracle"
+                            },
+                            "val": "void"
+                          },
+                          {
+                            "key": {
+                              "symbol": "xlm_sac_address"
+                            },
+                            "val": {
+                              "address": "CD3FXVGYSLQFFTW3UH6WFF2OKZH7VERGZJZAMJHTGHBWO4F6URWEJL23"
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "key": {
+                        "vec": [
+                          {
                             "symbol": "FeeRate"
                           }
                         ]
@@ -4233,6 +4572,18 @@
                       },
                       "val": {
                         "u32": 5000
+                      }
+                    },
+                    {
+                      "key": {
+                        "vec": [
+                          {
+                            "symbol": "NextInvoiceId"
+                          }
+                        ]
+                      },
+                      "val": {
+                        "u64": "11"
                       }
                     }
                   ]

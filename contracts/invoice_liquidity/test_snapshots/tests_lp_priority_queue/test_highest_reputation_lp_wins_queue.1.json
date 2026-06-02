@@ -1088,7 +1088,7 @@
                       "symbol": "due_date"
                     },
                     "val": {
-                      "u64": "1702592000"
+                      "u32": 1702592000
                     }
                   },
                   {
@@ -1137,6 +1137,14 @@
                           "symbol": "Pending"
                         }
                       ]
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "submitter_reputation"
+                    },
+                    "val": {
+                      "u32": 50
                     }
                   },
                   {
@@ -1212,7 +1220,7 @@
                       "symbol": "due_date"
                     },
                     "val": {
-                      "u64": "1702592000"
+                      "u32": 1702592000
                     }
                   },
                   {
@@ -1228,7 +1236,7 @@
                       "symbol": "funded_at"
                     },
                     "val": {
-                      "u64": "1700000000"
+                      "u32": 1700000000
                     }
                   },
                   {
@@ -1265,6 +1273,14 @@
                           "symbol": "Funded"
                         }
                       ]
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "submitter_reputation"
+                    },
+                    "val": {
+                      "u32": 50
                     }
                   },
                   {
@@ -1340,7 +1356,7 @@
                       "symbol": "due_date"
                     },
                     "val": {
-                      "u64": "1702592000"
+                      "u32": 1702592000
                     }
                   },
                   {
@@ -1356,7 +1372,7 @@
                       "symbol": "funded_at"
                     },
                     "val": {
-                      "u64": "1700000000"
+                      "u32": 1700000000
                     }
                   },
                   {
@@ -1393,6 +1409,14 @@
                           "symbol": "Funded"
                         }
                       ]
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "submitter_reputation"
+                    },
+                    "val": {
+                      "u32": 50
                     }
                   },
                   {
@@ -1468,7 +1492,7 @@
                       "symbol": "due_date"
                     },
                     "val": {
-                      "u64": "1702592000"
+                      "u32": 1702592000
                     }
                   },
                   {
@@ -1484,7 +1508,7 @@
                       "symbol": "funded_at"
                     },
                     "val": {
-                      "u64": "1700000000"
+                      "u32": 1700000000
                     }
                   },
                   {
@@ -1525,6 +1549,14 @@
                   },
                   {
                     "key": {
+                      "symbol": "submitter_reputation"
+                    },
+                    "val": {
+                      "u32": 50
+                    }
+                  },
+                  {
+                    "key": {
                       "symbol": "token"
                     },
                     "val": {
@@ -1532,30 +1564,6 @@
                     }
                   }
                 ]
-              }
-            }
-          },
-          "ext": "v0"
-        },
-        "live_until": 2000000
-      },
-      {
-        "entry": {
-          "last_modified_ledger_seq": 0,
-          "data": {
-            "contract_data": {
-              "ext": "v0",
-              "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAARQG5",
-              "key": {
-                "vec": [
-                  {
-                    "symbol": "InvoiceCount"
-                  }
-                ]
-              },
-              "durability": "persistent",
-              "val": {
-                "u64": "4"
               }
             }
           },
@@ -1778,6 +1786,74 @@
               "key": {
                 "vec": [
                   {
+                    "symbol": "Reputation"
+                  },
+                  {
+                    "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
+                  }
+                ]
+              },
+              "durability": "persistent",
+              "val": {
+                "map": [
+                  {
+                    "key": {
+                      "symbol": "address"
+                    },
+                    "val": {
+                      "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "invoices_defaulted"
+                    },
+                    "val": {
+                      "u32": 0
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "invoices_paid"
+                    },
+                    "val": {
+                      "u32": 0
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "invoices_submitted"
+                    },
+                    "val": {
+                      "u32": 4
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "score"
+                    },
+                    "val": {
+                      "u32": 0
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "ext": "v0"
+        },
+        "live_until": 2000000
+      },
+      {
+        "entry": {
+          "last_modified_ledger_seq": 0,
+          "data": {
+            "contract_data": {
+              "ext": "v0",
+              "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAARQG5",
+              "key": {
+                "vec": [
+                  {
                     "symbol": "SubmitterInvoices"
                   },
                   {
@@ -1832,6 +1908,33 @@
                     "address": "CDRIJBEGEU4HKTWI72MZ66F5TR24I6JO2LE6QXYZFUGBMW4K4AQ7IAJ6"
                   }
                 ]
+              }
+            }
+          },
+          "ext": "v0"
+        },
+        "live_until": 4095
+      },
+      {
+        "entry": {
+          "last_modified_ledger_seq": 0,
+          "data": {
+            "contract_data": {
+              "ext": "v0",
+              "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAARQG5",
+              "key": {
+                "vec": [
+                  {
+                    "symbol": "TokenVolume"
+                  },
+                  {
+                    "address": "CBEPDNVYXQGWB5YUBXKJWYJA7OXTZW5LFLNO5JRRGE6Z6C5OSUZPCCEL"
+                  }
+                ]
+              },
+              "durability": "persistent",
+              "val": {
+                "i128": "3000000000"
               }
             }
           },
@@ -1942,6 +2045,81 @@
                       "key": {
                         "vec": [
                           {
+                            "symbol": "Config"
+                          }
+                        ]
+                      },
+                      "val": {
+                        "map": [
+                          {
+                            "key": {
+                              "symbol": "bonus_bps"
+                            },
+                            "val": {
+                              "u32": 100
+                            }
+                          },
+                          {
+                            "key": {
+                              "symbol": "decay_period_ledgers"
+                            },
+                            "val": {
+                              "u64": "10000"
+                            }
+                          },
+                          {
+                            "key": {
+                              "symbol": "decay_rate_bps"
+                            },
+                            "val": {
+                              "u32": 50
+                            }
+                          },
+                          {
+                            "key": {
+                              "symbol": "dispute_timeout_ledgers"
+                            },
+                            "val": {
+                              "u64": "10000"
+                            }
+                          },
+                          {
+                            "key": {
+                              "symbol": "high_rep_threshold"
+                            },
+                            "val": {
+                              "u32": 70
+                            }
+                          },
+                          {
+                            "key": {
+                              "symbol": "min_discount_rate_bps"
+                            },
+                            "val": {
+                              "u32": 100
+                            }
+                          },
+                          {
+                            "key": {
+                              "symbol": "price_oracle"
+                            },
+                            "val": "void"
+                          },
+                          {
+                            "key": {
+                              "symbol": "xlm_sac_address"
+                            },
+                            "val": {
+                              "address": "CDRIJBEGEU4HKTWI72MZ66F5TR24I6JO2LE6QXYZFUGBMW4K4AQ7IAJ6"
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "key": {
+                        "vec": [
+                          {
                             "symbol": "FeeRate"
                           }
                         ]
@@ -1960,6 +2138,18 @@
                       },
                       "val": {
                         "u32": 5000
+                      }
+                    },
+                    {
+                      "key": {
+                        "vec": [
+                          {
+                            "symbol": "NextInvoiceId"
+                          }
+                        ]
+                      },
+                      "val": {
+                        "u64": "5"
                       }
                     }
                   ]

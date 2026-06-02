@@ -45,4 +45,45 @@ pub enum ContractError {
     PayerReputationTooLow = 31,
     /// Reentrancy guard: function called while already executing.
     Reentrancy = 32,
+    ArithmeticOverflow = 32,
+    /// Token charges a fee during `transfer`, causing the received amount to differ
+    /// from the amount sent and breaking ILN accounting.
+    FeeOnTransferToken = 33,
+    /// Issue #92: oracle returned unverified for the invoice payer when
+    /// require_oracle_verification was set to true.
+    PayerUnverified = 33,
+    /// Issue #93: oracle data is older than max_oracle_age_ledgers and must
+    /// be rejected to prevent stale-data attacks.
+    OracleDataStale = 34,
+    /// Dutch auction: invalid auction parameters (rates or decay)
+    InvalidAuctionParams = 35,
+    /// Dutch auction: auction has expired and cannot be funded
+    AuctionExpired = 36,
+    // ── Invoice NFT Operations ──────────────────────────────────
+    /// NFT already exists for this invoice (should not happen in normal flow).
+    InvoiceNftAlreadyExists = 35,
+    /// NFT does not exist for the requested invoice.
+    InvoiceNftNotFound = 36,
+    /// Caller is not the owner of the NFT.
+    InvoiceNftNotOwned = 37,
+    // ── Issue #122: LP Whitelist ────────────────────────────────
+    /// LP is not in the whitelist for this private invoice.
+    LPNotWhitelisted = 38,
+    /// Whitelist exceeds maximum size (10 addresses).
+    WhitelistTooLarge = 39,
+    // ── Issue #124: Multi-sig Admin ────────────────────────────
+    /// Caller is not an authorized multisig signer.
+    NotAuthorizedSigner = 40,
+    /// Proposal does not exist.
+    ProposalNotFound = 41,
+    /// Signer has already approved this proposal.
+    AlreadySigned = 42,
+    /// Proposal has expired and cannot be executed.
+    ProposalExpired = 43,
+    /// Threshold of signatures has not been reached.
+    ThresholdNotReached = 44,
+    /// Proposal has already been executed.
+    ProposalAlreadyExecuted = 45,
+    /// Invalid multisig configuration (e.g., threshold > signer count).
+    InvalidMultisigConfig = 46,
 }

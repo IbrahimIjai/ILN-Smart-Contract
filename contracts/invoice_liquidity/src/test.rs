@@ -4,7 +4,7 @@ use super::*;
 use soroban_sdk::{
     testutils::{Address as _, Events as _, Ledger},
     token::{Client as TokenClient, StellarAssetClient},
-    Address, Env, Event,
+    Address, Env, Event, BytesN,
 };
 
 // ----------------------------------------------------------------
@@ -37,6 +37,10 @@ pub fn setup() -> TestEnv {
     let usdc_contract_id = env.register_stellar_asset_contract_v2(usdc_admin.clone());
     let usdc_address = usdc_contract_id.address();
 
+    let eurc_admin = Address::generate(&env);
+    let eurc_contract_id = env.register_stellar_asset_contract_v2(eurc_admin.clone());
+    let eurc_address = eurc_contract_id.address();
+
     let token = TokenClient::new(&env, &usdc_address);
     let token_admin = StellarAssetClient::new(&env, &usdc_address);
 
@@ -61,8 +65,8 @@ pub fn setup() -> TestEnv {
     let xlm_contract_id = env.register_stellar_asset_contract_v2(xlm_admin);
     let xlm_address = xlm_contract_id.address();
 
-    // Initialize with mock USDC and mock XLM SAC addresses
-    contract.initialize(&usdc_admin, &usdc_address, &xlm_address);
+    // Initialize with mock USDC, EURC and mock XLM SAC addresses
+    contract.initialize(&usdc_admin, &usdc_address, &eurc_address, &xlm_address);
 
     // ---- Set ledger timestamp to a known baseline ----
     let mut ledger_info = env.ledger().get();
@@ -90,6 +94,7 @@ fn submit_standard_invoice(t: &TestEnv) -> u64 {
         &due_date,
         &DISCOUNT_RATE,
         &t.token.address,
+        &Option::<BytesN<32>>::None,
     )
 }
 
@@ -118,6 +123,7 @@ fn test_submit_invoice_stores_correct_fields() {
         &due_date,
         &DISCOUNT_RATE,
         &t.token.address,
+        &Option::<BytesN<32>>::None,
     );
 
     let invoice = t.contract.get_invoice(&id);
@@ -127,7 +133,7 @@ fn test_submit_invoice_stores_correct_fields() {
     assert_eq!(invoice.payer, t.payer);
     assert_eq!(invoice.token, t.token.address);
     assert_eq!(invoice.amount, INVOICE_AMOUNT);
-    assert_eq!(invoice.due_date, due_date);
+    assert_eq!(u64::from(invoice.due_date), due_date);
     assert_eq!(invoice.discount_rate, DISCOUNT_RATE);
     assert_eq!(invoice.status, InvoiceStatus::Pending);
     assert!(invoice.funder.is_none());
@@ -145,6 +151,7 @@ fn test_get_invoice_returns_existing_invoice() {
         &due_date,
         &DISCOUNT_RATE,
         &t.token.address,
+        &Option::<BytesN<32>>::None,
     );
 
     let invoice = t.contract.get_invoice(&id);
@@ -154,7 +161,7 @@ fn test_get_invoice_returns_existing_invoice() {
     assert_eq!(invoice.payer, t.payer);
     assert_eq!(invoice.token, t.token.address);
     assert_eq!(invoice.amount, INVOICE_AMOUNT);
-    assert_eq!(invoice.due_date, due_date);
+    assert_eq!(u64::from(invoice.due_date), due_date);
     assert_eq!(invoice.discount_rate, DISCOUNT_RATE);
     assert_eq!(invoice.status, InvoiceStatus::Pending);
     assert_eq!(invoice.amount_funded, 0);
@@ -175,6 +182,7 @@ fn test_submitter_reputation_snapshot_at_submission() {
         &due_date,
         &DISCOUNT_RATE,
         &t.token.address,
+        &Option::<BytesN<32>>::None,
     );
 
     let invoice = t.contract.get_invoice(&id);
@@ -408,7 +416,7 @@ fn test_update_invoice_updates_pending_invoice_fields() {
 
     let invoice = t.contract.get_invoice(&id);
     assert_eq!(invoice.amount, updated_amount);
-    assert_eq!(invoice.due_date, updated_due_date);
+    assert_eq!(u64::from(invoice.due_date), updated_due_date);
     assert_eq!(invoice.discount_rate, updated_discount_rate);
     assert_eq!(invoice.payer, t.payer);
     assert_eq!(invoice.status, InvoiceStatus::Pending);
@@ -472,7 +480,7 @@ fn test_update_funded_invoice_fails() {
     let id = submit_standard_invoice(&t);
     let updated_due_date = t.env.ledger().timestamp() + DUE_DATE_OFFSET * 2;
 
-    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT);
+    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT, &false);
 
     let result = t.contract.try_update_invoice(
         &t.freelancer,
@@ -559,11 +567,72 @@ fn test_transfer_funded_invoice_fails() {
     let t = setup();
     let id = submit_standard_invoice(&t);
 
-    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT);
+    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT, &false);
 
     let new_freelancer = Address::generate(&t.env);
     let result = t.contract.try_transfer_invoice(&id, &new_freelancer);
     assert_eq!(result, Err(Ok(ContractError::AlreadyFunded)));
+}
+
+#[test]
+fn test_transfer_lp_position_updates_funder_and_lp_index() {
+    let t = setup();
+    let id = submit_standard_invoice(&t);
+
+    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT);
+
+    let new_lp = Address::generate(&t.env);
+    t.contract.transfer_lp_position(&id, &new_lp);
+
+    let invoice = t.contract.get_invoice(&id);
+    assert_eq!(invoice.funder, Some(new_lp.clone()));
+
+    let old_lp_invoices = t.contract.list_invoices_by_lp(&t.funder, &0, &50);
+    assert!(!old_lp_invoices.iter().any(|invoice| invoice.id == id));
+
+    let new_lp_invoices = t.contract.list_invoices_by_lp(&new_lp, &0, &50);
+    assert!(new_lp_invoices.iter().any(|invoice| invoice.id == id));
+}
+
+#[test]
+fn test_transfer_lp_position_pays_new_lp_on_settlement() {
+    let t = setup();
+    let id = submit_standard_invoice(&t);
+
+    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT);
+
+    let new_lp = Address::generate(&t.env);
+    t.contract.transfer_lp_position(&id, &new_lp);
+
+    let old_lp_balance_before = t.token.balance(&t.funder);
+    let new_lp_balance_before = t.token.balance(&new_lp);
+
+    t.contract.mark_paid(&id, &INVOICE_AMOUNT);
+
+    let old_lp_balance_after = t.token.balance(&t.funder);
+    let new_lp_balance_after = t.token.balance(&new_lp);
+
+    assert_eq!(old_lp_balance_after, old_lp_balance_before);
+    assert_eq!(new_lp_balance_after - new_lp_balance_before, INVOICE_AMOUNT);
+}
+
+#[test]
+fn test_transfer_lp_position_can_transfer_twice() {
+    let t = setup();
+    let id = submit_standard_invoice(&t);
+
+    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT);
+
+    let new_lp = Address::generate(&t.env);
+    let second_lp = Address::generate(&t.env);
+
+    t.contract.transfer_lp_position(&id, &new_lp);
+    t.contract.transfer_lp_position(&id, &second_lp);
+
+    let invoice = t.contract.get_invoice(&id);
+    assert_eq!(invoice.funder, Some(second_lp.clone()));
+    let invoices = t.contract.list_invoices_by_lp(&second_lp, &0, &50);
+    assert!(invoices.iter().any(|invoice| invoice.id == id));
 }
 
 // ----------------------------------------------------------------
@@ -578,7 +647,7 @@ fn test_fund_invoice_transfers_correct_amounts() {
     let funder_balance_before = t.token.balance(&t.funder);
     let freelancer_balance_before = t.token.balance(&t.freelancer);
 
-    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT);
+    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT, &false);
 
     let funder_balance_after = t.token.balance(&t.funder);
     let freelancer_balance_after = t.token.balance(&t.freelancer);
@@ -607,7 +676,7 @@ fn test_fund_invoice_updates_status_to_funded() {
     let t = setup();
     let id = submit_standard_invoice(&t);
 
-    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT);
+    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT, &false);
 
     let invoice = t.contract.get_invoice(&id);
 
@@ -622,10 +691,10 @@ fn test_fund_invoice_sets_funded_at_timestamp() {
     let id = submit_standard_invoice(&t);
     let now = t.env.ledger().timestamp();
 
-    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT);
+    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT, &false);
 
     let invoice = t.contract.get_invoice(&id);
-    assert_eq!(invoice.funded_at, Some(now));
+    assert_eq!(invoice.funded_at, Some(now.try_into().expect("timestamp")));
 }
 
 // ----------------------------------------------------------------
@@ -647,7 +716,7 @@ fn test_fund_already_funded_invoice_fails() {
     let t = setup();
     let id = submit_standard_invoice(&t);
 
-    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT);
+    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT, &false);
 
     // Second funder tries to fund the same invoice
     let second_funder = Address::generate(&t.env);
@@ -667,7 +736,7 @@ fn test_mark_paid_releases_full_amount_to_lp() {
     let t = setup();
     let id = submit_standard_invoice(&t);
 
-    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT);
+    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT, &false);
 
     let funder_balance_before = t.token.balance(&t.funder);
 
@@ -688,7 +757,7 @@ fn test_mark_paid_updates_status() {
     let t = setup();
     let id = submit_standard_invoice(&t);
 
-    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT);
+    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT, &false);
     t.contract.mark_paid(&id, &INVOICE_AMOUNT);
 
     let invoice = t.contract.get_invoice(&id);
@@ -704,7 +773,7 @@ fn test_full_lifecycle_lp_earns_correct_yield() {
     let lp_start = t.token.balance(&t.funder);
 
     // LP funds the invoice
-    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT);
+    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT, &false);
 
     // Payer settles
     t.contract.mark_paid(&id, &INVOICE_AMOUNT);
@@ -727,7 +796,7 @@ fn test_full_lifecycle_payer_balance_reduces_correctly() {
 
     let payer_start = t.token.balance(&t.payer);
 
-    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT);
+    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT, &false);
     t.contract.mark_paid(&id, &INVOICE_AMOUNT);
 
     let payer_end = t.token.balance(&t.payer);
@@ -759,7 +828,7 @@ fn test_mark_paid_twice_fails() {
     let t = setup();
     let id = submit_standard_invoice(&t);
 
-    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT);
+    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT, &false);
     t.contract.mark_paid(&id, &INVOICE_AMOUNT);
 
     // Paying again should fail
@@ -780,7 +849,7 @@ fn test_claim_default_success() {
     let t = setup();
     let id = submit_standard_invoice(&t);
 
-    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT);
+    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT, &false);
 
     // Move time forward past due date
     let mut ledger = t.env.ledger().get();
@@ -810,7 +879,7 @@ fn test_claim_default_before_due_date_fails() {
     let t = setup();
     let id = submit_standard_invoice(&t);
 
-    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT);
+    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT, &false);
 
     let result = t.contract.try_claim_default(&t.funder, &id);
     assert_eq!(result, Err(Ok(ContractError::NotYetDefaulted)));
@@ -821,7 +890,7 @@ fn test_claim_default_non_funder_fails() {
     let t = setup();
     let id = submit_standard_invoice(&t);
 
-    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT);
+    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT, &false);
 
     // Move time forward
     let mut ledger = t.env.ledger().get();
@@ -839,7 +908,7 @@ fn test_claim_default_on_paid_invoice_fails() {
     let t = setup();
     let id = submit_standard_invoice(&t);
 
-    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT);
+    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT, &false);
     t.contract.mark_paid(&id, &INVOICE_AMOUNT);
 
     // Move time forward
@@ -856,7 +925,7 @@ fn test_claim_default_twice_fails() {
     let t = setup();
     let id = submit_standard_invoice(&t);
 
-    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT);
+    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT, &false);
 
     // Move time forward
     let mut ledger = t.env.ledger().get();
@@ -928,7 +997,7 @@ fn test_perfect_payer_score() {
     let t = setup();
     let id = submit_standard_invoice(&t);
 
-    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT);
+    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT, &false);
     t.contract.mark_paid(&id, &INVOICE_AMOUNT);
 
     let score = t.contract.payer_score(&t.payer);
@@ -941,7 +1010,7 @@ fn test_payer_with_default() {
     let t = setup();
     let id = submit_standard_invoice(&t);
 
-    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT);
+    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT, &false);
 
     let mut ledger = t.env.ledger().get();
     ledger.timestamp += DUE_DATE_OFFSET + 1;
@@ -976,6 +1045,7 @@ fn test_reputation_decay_inactive_score() {
         decay_rate_bps: 100, // 1% per period
         decay_period_ledgers: 1000,
         dispute_timeout_ledgers: 100,
+        xlm_sac_address: Address::generate(&t.env),
         price_oracle: None,
     };
     t.env.as_contract(&t.contract.address, || {
@@ -1013,6 +1083,7 @@ fn test_reputation_no_decay_when_inactive() {
         decay_rate_bps: 100,
         decay_period_ledgers: 10_000_000, // Very long period
         dispute_timeout_ledgers: 100,
+        xlm_sac_address: Address::generate(&t.env),
         price_oracle: None,
     };
     t.env.as_contract(&t.contract.address, || {
@@ -1047,6 +1118,7 @@ fn test_reputation_decay_activity_resets() {
         decay_rate_bps: 100,
         decay_period_ledgers: 1000,
         dispute_timeout_ledgers: 100,
+        xlm_sac_address: Address::generate(&t.env),
         price_oracle: None,
     };
 
@@ -1091,6 +1163,7 @@ fn test_reputation_score_never_goes_below_zero() {
         decay_rate_bps: 5000, // Very aggressive decay: 50% per period
         decay_period_ledgers: 100,
         dispute_timeout_ledgers: 100,
+        xlm_sac_address: Address::generate(&t.env),
         price_oracle: None,
     };
     t.env.as_contract(&t.contract.address, || {
@@ -1135,26 +1208,23 @@ fn test_upgrade_emits_correct_event() {
     let wasm_hash = soroban_sdk::BytesN::from_array(&t.env, &[1u8; 32]);
 
     // Admin calls upgrade
-    let result = t.contract.try_upgrade(&wasm_hash);
-    assert!(result.is_ok(), "Admin should be able to call upgrade");
+    t.contract.upgrade(&wasm_hash);
 
-    // Check that ContractUpgraded event was emitted
-    let events = t.env.events().all();
-    let upgrade_events: Vec<_> = events
-        .iter()
-        .filter(|event| {
-            event.topics.get(0).map_or(false, |topic| {
-                // Check if topic matches "upgraded" (this is a simplified check)
-                topic.to_string().contains("upgraded") || event.topics.len() > 0
-                // Alternative: check by position
-            })
-        })
-        .collect();
+    let events = t.env.events().all().filter_by_contract(&t.contract.address);
 
-    // Event should be present (simplified validation)
-    // In production, you'd validate the exact event data
-    assert!(
-        !upgrade_events.is_empty(),
+    let admin = t.env.as_contract(&t.contract.address, || {
+        crate::storage::get_admin(&t.env).unwrap()
+    });
+
+    let expected_event = crate::events::ContractUpgraded {
+        admin,
+        new_wasm_hash: wasm_hash,
+        timestamp: t.env.ledger().timestamp(),
+    };
+
+    assert_eq!(
+        events.events().last(),
+        Some(&expected_event.to_xdr(&t.env, &t.contract.address)),
         "ContractUpgraded event should be emitted"
     );
 }
@@ -1162,12 +1232,12 @@ fn test_upgrade_emits_correct_event() {
 #[test]
 fn test_upgrade_requires_admin() {
     let t = setup();
-    let unauthorized_caller = Address::generate(&t.env);
+    let _unauthorized_caller = Address::generate(&t.env);
 
     let wasm_hash = soroban_sdk::BytesN::from_array(&t.env, &[2u8; 32]);
 
     // Non-admin should not be able to call upgrade
-    let result = t.contract.try_upgrade(&wasm_hash);
+    let _result = t.contract.try_upgrade(&wasm_hash);
 
     // Should fail (admin-only)
     // Note: In test env with mock_all_auths(), this might not fail
@@ -1187,7 +1257,7 @@ fn test_upgrade_does_not_affect_existing_invoices() {
 
     // Perform upgrade
     let wasm_hash = soroban_sdk::BytesN::from_array(&t.env, &[3u8; 32]);
-    let _ = t.contract.upgrade(&wasm_hash);
+    t.contract.upgrade(&wasm_hash);
 
     // Verify invoice is still readable and unchanged
     let invoice_after = t.contract.get_invoice(&id);
@@ -1219,7 +1289,7 @@ fn test_upgrade_snapshot_before_after() {
     let t = setup();
 
     // Get contract stats before upgrade
-    let stats_before = t.contract.get_contract_stats();
+    let _stats_before = t.contract.get_contract_stats();
 
     // Submit invoices to have data
     let _id1 = submit_standard_invoice(&t);
@@ -1227,7 +1297,7 @@ fn test_upgrade_snapshot_before_after() {
 
     // Perform upgrade
     let wasm_hash = soroban_sdk::BytesN::from_array(&t.env, &[4u8; 32]);
-    let _ = t.contract.upgrade(&wasm_hash);
+    t.contract.upgrade(&wasm_hash);
 
     // Get contract stats after upgrade
     let stats_after = t.contract.get_contract_stats();

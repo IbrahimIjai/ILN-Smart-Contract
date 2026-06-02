@@ -62,7 +62,9 @@ fn setup_security() -> TestEnv {
     let xlm_admin = Address::generate(&env);
     let xlm_contract_id = env.register_stellar_asset_contract_v2(xlm_admin);
     let xlm_address = xlm_contract_id.address();
-    contract.initialize(&usdc_admin, &usdc_address, &xlm_address);
+    let eurc_address = Address::generate(&env);
+
+    contract.initialize(&usdc_admin, &usdc_address, &eurc_address, &xlm_address);
 
     // Fix ledger timestamp
     let mut ledger_info = env.ledger().get();
@@ -116,7 +118,7 @@ fn test_overflow_max_amount_does_not_panic() {
     // the contract falls back to discount_amount = 0.
     // That means freelancer_payout = i128::MAX, which the funder must have.
     // Our mock mint above gave the funder i128::MAX, so the transfer works.
-    t.contract.fund_invoice(&t.funder, &id, &amount);
+    t.contract.fund_invoice(&t.funder, &id, &amount, &false);
 
     let invoice = t.contract.get_invoice(&id);
     assert_eq!(
@@ -162,7 +164,7 @@ fn test_overflow_boundary_half_max_amount_no_panic() {
     );
 
     // Must not panic
-    t.contract.fund_invoice(&t.funder, &id, &amount);
+    t.contract.fund_invoice(&t.funder, &id, &amount, &false);
 
     let invoice = t.contract.get_invoice(&id);
     assert_eq!(
@@ -212,7 +214,7 @@ fn test_payout_never_negative_for_valid_inputs() {
             &t.token.address,
         );
 
-        t.contract.fund_invoice(&t.funder, &id, &amount);
+        t.contract.fund_invoice(&t.funder, &id, &amount, &false);
 
         let fl_after = t.token.balance(&t.freelancer);
 
@@ -260,7 +262,7 @@ fn test_funding_invoice_a_does_not_affect_invoice_b() {
     );
 
     // Fund invoice A
-    t.contract.fund_invoice(&t.funder, &id_a, &1_000_000_000);
+    t.contract.fund_invoice(&t.funder, &id_a, &1_000_000_000, &false);
 
     // B's state must remain completely untouched
     let invoice_a = t.contract.get_invoice(&id_a);
@@ -335,7 +337,7 @@ fn test_storage_isolation_adjacent_invoice_ids() {
     assert_eq!(id_2, 2, "Second invoice must have ID 2");
 
     // Fully cycle invoice 1: fund -> mark paid
-    t.contract.fund_invoice(&new_funder, &id_1, &1_000_000_000);
+    t.contract.fund_invoice(&new_funder, &id_1, &1_000_000_000, &false);
     t.contract.mark_paid(&id_1, &1_000_000_000);
 
     let inv1 = t.contract.get_invoice(&id_1);

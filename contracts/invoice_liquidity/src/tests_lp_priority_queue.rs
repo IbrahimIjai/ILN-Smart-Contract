@@ -65,7 +65,8 @@ fn setup_queue() -> QueueTestEnv {
     let xlm_id = env.register_stellar_asset_contract_v2(xlm_admin);
     let xlm_addr = xlm_id.address();
 
-    contract.initialize(&usdc_admin, &usdc_addr, &xlm_addr);
+    let eurc_addr = Address::generate(&env);
+    contract.initialize(&usdc_admin, &usdc_addr, &eurc_addr, &xlm_addr);
 
     let mut ledger = env.ledger().get();
     ledger.timestamp = 1_700_000_000;
@@ -194,7 +195,7 @@ fn test_highest_reputation_lp_wins_queue() {
     // Simulate lp_b having a higher score than default by funding 3 invoices.
     for _ in 0..3u32 {
         let extra_id = submit_invoice(&t);
-        t.contract.fund_invoice(&t.lp_b, &extra_id, &INVOICE_AMOUNT);
+        t.contract.fund_invoice(&t.lp_b, &extra_id, &INVOICE_AMOUNT, &false);
         // Each full fund adds 1 to lp_score → lp_b will be at 53.
     }
 
@@ -232,7 +233,7 @@ fn test_approved_lp_can_fund_after_queue_resolution() {
     t.contract.resolve_fund_queue(&id);
 
     // lp_a is approved — should fund successfully.
-    t.contract.fund_invoice(&t.lp_a, &id, &INVOICE_AMOUNT);
+    t.contract.fund_invoice(&t.lp_a, &id, &INVOICE_AMOUNT, &false);
 
     let invoice = t.contract.get_invoice(&id);
     assert_eq!(invoice.status, InvoiceStatus::Funded);
@@ -258,7 +259,7 @@ fn test_fund_invoice_without_queue_works_normally() {
     let id = submit_invoice(&t);
 
     // No queue join, no resolution — lp_a funds directly.
-    t.contract.fund_invoice(&t.lp_a, &id, &INVOICE_AMOUNT);
+    t.contract.fund_invoice(&t.lp_a, &id, &INVOICE_AMOUNT, &false);
 
     let invoice = t.contract.get_invoice(&id);
     assert_eq!(invoice.status, InvoiceStatus::Funded);
@@ -270,7 +271,7 @@ fn test_lp_score_increases_after_successful_fund() {
     let id = submit_invoice(&t);
 
     let score_before = t.contract.lp_score(&t.lp_a);
-    t.contract.fund_invoice(&t.lp_a, &id, &INVOICE_AMOUNT);
+    t.contract.fund_invoice(&t.lp_a, &id, &INVOICE_AMOUNT, &false);
     let score_after = t.contract.lp_score(&t.lp_a);
 
     assert_eq!(score_after, score_before + 1);
@@ -288,7 +289,7 @@ fn test_full_queue_lifecycle_with_payout() {
     // Both at score 50, lp_a wins tie.
     assert_eq!(winner, t.lp_a);
 
-    t.contract.fund_invoice(&t.lp_a, &id, &INVOICE_AMOUNT);
+    t.contract.fund_invoice(&t.lp_a, &id, &INVOICE_AMOUNT, &false);
     t.contract.mark_paid(&id, &INVOICE_AMOUNT);
 
     let invoice = t.contract.get_invoice(&id);

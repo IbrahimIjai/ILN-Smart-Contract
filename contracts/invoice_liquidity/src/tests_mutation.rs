@@ -61,7 +61,8 @@ fn setup() -> TestEnv {
     let xlm_contract_id = env.register_stellar_asset_contract_v2(xlm_admin);
     let xlm_address = xlm_contract_id.address();
 
-    contract.initialize(&usdc_admin, &usdc_address, &xlm_address);
+    let eurc_address = Address::generate(&env);
+    contract.initialize(&usdc_admin, &usdc_address, &eurc_address, &xlm_address);
 
     let mut ledger_info = env.ledger().get();
     ledger_info.timestamp = 1_700_000_000;
@@ -129,7 +130,7 @@ fn mt02_partial_fund_keeps_status_partially_funded() {
 
     // Fund exactly half the invoice amount
     let half = INVOICE_AMOUNT / 2;
-    t.contract.fund_invoice(&t.funder, &id, &half);
+    t.contract.fund_invoice(&t.funder, &id, &half, &false);
 
     let invoice = t.contract.get_invoice(&id);
 
@@ -165,7 +166,7 @@ fn mt03_payer_score_increases_by_exactly_one_on_settlement() {
     let score_before = t.contract.payer_score(&t.payer);
     assert_eq!(score_before, 50, "default score should be 50");
 
-    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT);
+    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT, &false);
     t.contract.mark_paid(&id, &INVOICE_AMOUNT);
 
     let score_after = t.contract.payer_score(&t.payer);
@@ -196,7 +197,7 @@ fn mt04_payer_score_decreases_by_exactly_five_on_default() {
         &t.token.address,
     );
 
-    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT);
+    t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT, &false);
 
     // Advance ledger past due date
     let mut ledger = t.env.ledger().get();
@@ -242,7 +243,7 @@ fn mt05_payer_score_floors_at_zero_not_negative() {
             &t.token.address,
         );
 
-        t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT);
+        t.contract.fund_invoice(&t.funder, &id, &INVOICE_AMOUNT, &false);
 
         let mut ledger = t.env.ledger().get();
         ledger.timestamp += DUE_DATE_OFFSET + 1;
@@ -269,7 +270,7 @@ fn mt05_payer_score_floors_at_zero_not_negative() {
     );
 
     t.contract
-        .fund_invoice(&t.funder, &last_id, &INVOICE_AMOUNT);
+        .fund_invoice(&t.funder, &last_id, &INVOICE_AMOUNT, &false);
 
     let mut ledger = t.env.ledger().get();
     ledger.timestamp += DUE_DATE_OFFSET + 1;

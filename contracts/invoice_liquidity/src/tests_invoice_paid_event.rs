@@ -1,11 +1,10 @@
 #![cfg(test)]
 
-use super::*;
-use crate::{events::InvoicePaid, InvoiceLiquidityContract, InvoiceLiquidityContractClient};
+use crate::{InvoiceLiquidityContract, InvoiceLiquidityContractClient};
 
 use soroban_sdk::{
     testutils::{Address as _, Events},
-    token::{Client as TokenClient, StellarAssetClient},
+    token::StellarAssetClient,
     Address, Env,
 };
 
@@ -61,7 +60,7 @@ fn emits_invoice_paid_event_with_full_settlement_details() {
     // ------------------------------------------------------------
     // Fund invoice
     // ------------------------------------------------------------
-    client.fund_invoice(&lp, &invoice_id, &1_000_000_i128);
+    client.fund_invoice(&lp, &invoice_id, &1_000_000_i128, &false);
 
     // ------------------------------------------------------------
     // Expected math
@@ -69,10 +68,10 @@ fn emits_invoice_paid_event_with_full_settlement_details() {
     let amount_paid: i128 = 1_000_000;
 
     // no protocol fee by default
-    let lp_payout: i128 = 1_000_000;
+    let _lp_payout: i128 = 1_000_000;
 
     // payout - funded
-    let lp_earned: i128 = 0;
+    let _lp_earned: i128 = 0;
 
     // ------------------------------------------------------------
     // Mark paid

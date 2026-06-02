@@ -31,10 +31,14 @@ pub struct InvoiceSubmitted {
     pub amount: i128,
     pub due_date: u64,
     pub discount_rate: u32,
+    pub referral_code: Option<BytesN<32>>,
     pub status: InvoiceStatus,
     /// Ledger timestamp when the invoice was submitted.  Included so indexers
     /// can reconstruct the full invoice record from events alone.
     pub timestamp: u64,
+    /// Issue #122: Optional whitelist of allowed LPs for this invoice.
+    /// If present, only whitelisted LPs can fund this invoice.
+    pub allowed_lps: Option<soroban_sdk::Vec<Address>>,
 }
 
 #[contractevent(topics = ["updated"])]
@@ -127,6 +131,16 @@ pub struct InvoicePartiallyPaid {
     pub remaining_amount: i128,
 }
 
+#[contractevent(topics = ["fees_collected"])]
+#[derive(Clone, Debug, PartialEq)]
+pub struct FeesCollected {
+    #[topic]
+    pub invoice_id: u64,
+    pub fee_amount: i128,
+    #[topic]
+    pub treasury: Address,
+}
+
 #[contractevent(topics = ["paused"])]
 #[derive(Clone, Debug, PartialEq)]
 pub struct ContractPaused {
@@ -172,6 +186,16 @@ pub struct InvoiceCancelled {
     #[topic]
     pub invoice_id: u64,
     pub freelancer: Address,
+    pub status: InvoiceStatus,
+}
+
+#[contractevent(topics = ["lp_position_transferred"])]
+#[derive(Clone, Debug, PartialEq)]
+pub struct LPPositionTransferred {
+    #[topic]
+    pub invoice_id: u64,
+    pub old_lp: Address,
+    pub new_lp: Address,
     pub status: InvoiceStatus,
 }
 
@@ -289,4 +313,74 @@ pub struct FundQueueResolved {
     pub approved_lp: Address,
     /// Winning score that secured priority.
     pub score: u32,
+}
+
+#[contractevent(topics = ["expired"])]
+#[derive(Clone, Debug, PartialEq)]
+pub struct InvoiceExpired {
+    #[topic]
+    pub invoice_id: u64,
+    pub freelancer: Address,
+    pub status: InvoiceStatus,
+}
+
+/// Emitted when an address's reputation score or counters are updated (Issue #32).
+#[contractevent(topics = ["reputation_updated"])]
+#[derive(Clone, Debug, PartialEq)]
+pub struct ReputationUpdated {
+    #[topic]
+    pub address: Address,
+    pub old_score: u32,
+    pub new_score: u32,
+    pub invoices_submitted: u32,
+    pub invoices_paid: u32,
+    pub invoices_defaulted: u32,
+}
+
+#[contractevent(topics = ["token_changed"])]
+#[derive(Clone, Debug, PartialEq)]
+pub struct InvoiceTokenChanged {
+    #[topic]
+    pub invoice_id: u64,
+    pub old_token: Address,
+    pub new_token: Address,
+}
+
+// ── Dutch Auction Events ───────────────────────────────────────────────────────
+
+/// Emitted when a Dutch auction invoice is created.
+/// The rate starts high and decreases linearly over time until an LP accepts.
+#[contractevent(topics = ["auction_started"])]
+#[derive(Clone, Debug, PartialEq)]
+pub struct AuctionStarted {
+    #[topic]
+    pub invoice_id: u64,
+    #[topic]
+    pub freelancer: Address,
+    pub payer: Address,
+    pub token: Address,
+    pub amount: i128,
+    pub due_date: u64,
+    pub start_rate: u32,           // starting rate in basis points
+    pub min_rate: u32,             // minimum rate in basis points
+    pub rate_decay_per_hour: u32,  // decay in basis points per hour
+    pub started_at: u64,           // timestamp when auction started
+}
+
+/// Emitted when an LP funds a Dutch auction invoice.
+/// Records the actual rate discovered at the time of funding.
+#[contractevent(topics = ["auction_funded"])]
+#[derive(Clone, Debug, PartialEq)]
+pub struct AuctionFunded {
+    #[topic]
+    pub invoice_id: u64,
+    #[topic]
+    pub funder: Address,
+    pub freelancer: Address,
+    pub payer: Address,
+    pub token: Address,
+    pub fund_amount: i128,
+    pub effective_rate: u32,       // the actual rate at time of funding
+    pub hours_elapsed: u32,        // hours elapsed since auction started
+    pub funded_at: u64,            // timestamp when auction was funded
 }

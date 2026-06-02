@@ -54,7 +54,8 @@ fn setup_fuzz() -> FuzzEnv {
     let xlm_contract_id = env.register_stellar_asset_contract_v2(xlm_admin);
     let xlm_address = xlm_contract_id.address();
 
-    contract.initialize(&usdc_admin, &usdc_address, &xlm_address);
+    let eurc_address = Address::generate(&env);
+    contract.initialize(&usdc_admin, &usdc_address, &eurc_address, &xlm_address);
 
     // Fix ledger timestamp to a known baseline
     let mut ledger_info = env.ledger().get();

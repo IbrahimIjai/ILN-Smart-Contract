@@ -4,6 +4,7 @@
 // invoice and dispute/appeal record representations.
 
 use super::*;
+use super::test::setup;
 use soroban_sdk::BytesN;
 
 #[test]
@@ -21,12 +22,15 @@ fn test_invoice_storage_roundtrip_u32_timestamps() {
         funder: Some(t.funder.clone()),
         funded_at: Some(1_700_000_100u64.try_into().unwrap()),
         amount_funded: 500_000_000,
+        amount_paid: 0,
         submitter_reputation: 55,
     };
 
-    save_invoice(&t.env, &invoice);
-    let loaded = load_invoice(&t.env, invoice.id);
-    assert_eq!(loaded, invoice);
+    t.env.as_contract(&t.contract.address, || {
+        save_invoice(&t.env, &invoice);
+        let loaded = load_invoice(&t.env, invoice.id);
+        assert_eq!(loaded, invoice);
+    });
 }
 
 #[test]
@@ -39,13 +43,17 @@ fn test_appeal_and_dispute_record_storage_roundtrip() {
         appealed_at: 1_700_000_500u64.try_into().unwrap(),
         pre_default_score: 72,
     };
-    save_appeal(&t.env, invoice_id, &appeal);
-    assert_eq!(get_appeal(&t.env, invoice_id).unwrap(), appeal);
 
     let dispute = DisputeRecord {
         reason_hash: BytesN::from_array(&t.env, &[0xBB; 32]),
         disputed_at: 12345u32,
     };
-    save_dispute(&t.env, invoice_id, &dispute);
-    assert_eq!(get_dispute(&t.env, invoice_id).unwrap(), dispute);
+
+    t.env.as_contract(&t.contract.address, || {
+        save_appeal(&t.env, invoice_id, &appeal);
+        assert_eq!(get_appeal(&t.env, invoice_id).unwrap(), appeal);
+
+        save_dispute(&t.env, invoice_id, &dispute);
+        assert_eq!(get_dispute(&t.env, invoice_id).unwrap(), dispute);
+    });
 }

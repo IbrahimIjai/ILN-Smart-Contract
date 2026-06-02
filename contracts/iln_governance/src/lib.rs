@@ -4,6 +4,8 @@
 //! Issue #61 — cast_vote() with anti-double-vote protection and VoteCast event.
 //! Issue #64 — delegate_votes() / undelegate_votes() with transitive delegation
 //!             and cycle detection.
+//! Issue #68 — veto_proposal() admin emergency block with governance-controlled
+//!             disable mechanism.
 
 #![no_std]
 use soroban_sdk::{
@@ -14,6 +16,13 @@ use soroban_sdk::{
 /// Vote receipts only need to outlive the active voting window.
 const VOTE_RECEIPT_TTL_THRESHOLD_LEDGERS: u32 = 50_000;
 const VOTE_RECEIPT_TTL_LEDGERS: u32 = 69_120;
+/// Default minimum quorum = 10% (1000 bps).
+const DEFAULT_MIN_QUORUM_BPS: u32 = 1_000;
+/// Default voting window: 3 days at ~5 s/ledger ≈ 51_840 ledgers.
+/// Expressed in seconds to match `env.ledger().timestamp()`.
+const VOTING_PERIOD_SECS: u64 = 259_200;
+/// Default minimum token balance required to submit a proposal (1 000 stroops).
+const DEFAULT_MIN_PROPOSAL_BALANCE: i128 = 1_000;
 
 /// Maximum transitive delegation chain depth we will traverse.
 const MAX_DELEGATION_DEPTH: u32 = 10;
@@ -39,6 +48,18 @@ pub enum GovernanceError {
     CannotDelegateToSelf = 11,
     /// Issue #64: Delegation would create a cycle.
     DelegationCyclePrevented = 12,
+    TimelockNotExpired = 13,
+    Unauthorized = 14,
+    /// Invalid quorum basis points (must be 1..=10_000).
+    InvalidQuorumBps = 15,
+    /// Issue #68: caller is not the admin.
+    NotAdmin = 16,
+    /// Issue #68: proposal cannot be vetoed in its current status.
+    NotVetoable = 17,
+    /// Issue #68: admin veto power has been disabled by governance.
+    VetoPowerDisabled = 18,
+    /// Proposer does not hold the minimum required token balance.
+    InsufficientProposerBalance = 19,
 }
 
 // ================================================================
@@ -65,6 +86,8 @@ pub enum ProposalStatus {
     Passed,
     Rejected,
     Executed,
+    /// Issue #68: proposal was blocked by the admin via veto_proposal().
+    Vetoed,
 }
 
 // ================================================================
@@ -84,6 +107,7 @@ pub struct GovernanceProposal {
     pub votes_against: i128,
     pub created_at: u64,
     pub voting_end: u64,
+    pub eta_ledger: u32,
 }
 
 // ================================================================
@@ -119,6 +143,41 @@ pub struct VotesUndelegated {
     pub delegator: Address,
 }
 
+#[contractevent(topics = ["proposal_executed"])]
+#[derive(Clone, Debug, PartialEq)]
+pub struct ProposalExecuted {
+    #[topic]
+    pub proposal_id: u64,
+    pub action_type: ProposalAction,
+    pub proposed_value: i128,
+    pub votes_for: i128,
+    pub votes_against: i128,
+}
+
+/// Issue #68: emitted when the admin vetoes a proposal.
+#[contractevent(topics = ["proposal_vetoed"])]
+#[derive(Clone, Debug, PartialEq)]
+pub struct ProposalVetoed {
+    #[topic]
+    pub proposal_id: u64,
+    #[topic]
+    pub admin: Address,
+    pub reason_hash: BytesN<32>,
+}
+
+/// Emitted when a new governance proposal is created.
+#[contractevent(topics = ["proposal_created"])]
+#[derive(Clone, Debug, PartialEq)]
+pub struct ProposalCreated {
+    #[topic]
+    pub proposal_id: u64,
+    #[topic]
+    pub proposer: Address,
+    pub action_type: ProposalAction,
+    pub proposed_value: i128,
+    pub voting_end: u64,
+}
+
 // ================================================================
 // Storage keys
 // ================================================================
@@ -127,6 +186,9 @@ pub struct VotesUndelegated {
 pub enum StorageKey {
     IlnContract,
     GovToken,
+    /// Configurable minimum participation required for proposal passing.
+    /// Expressed in basis points (bps) of total supply, e.g. 1000 = 10%.
+    MinQuorumBps,
     Proposal(u64),
     ProposalCount,
     VoteWeightSnapshot(u64, Address),
@@ -135,6 +197,13 @@ pub enum StorageKey {
     Delegation(Address),
     /// Issue #64: running tally of total delegated weight pointing (transitively) at Address.
     DelegatedToMe(Address),
+    ExecutionDelay,
+    /// Issue #68: the admin address (set at initialise time).
+    Admin,
+    /// Issue #68: when `true`, admin veto power is active; when `false`, it has been disabled.
+    VetoPowerEnabled,
+    /// Configurable minimum token balance a proposer must hold.
+    MinProposalBalance,
 }
 
 // ================================================================
@@ -152,17 +221,62 @@ impl GovContract {
         env: Env,
         iln_contract: Address,
         gov_token: Address,
+        admin: Address,
     ) -> Result<(), GovernanceError> {
         if env.storage().instance().has(&StorageKey::IlnContract) {
             return Err(GovernanceError::AlreadyInitialized);
         }
-        env.storage().instance().set(&StorageKey::IlnContract, &iln_contract);
-        env.storage().instance().set(&StorageKey::GovToken, &gov_token);
-        env.storage().instance().set(&StorageKey::ProposalCount, &0_u64);
+        env.storage()
+            .instance()
+            .set(&StorageKey::IlnContract, &iln_contract);
+        env.storage()
+            .instance()
+            .set(&StorageKey::GovToken, &gov_token);
+        env.storage()
+            .instance()
+            .set(&StorageKey::Admin, &admin);
+        env.storage()
+            .instance()
+            .set(&StorageKey::VetoPowerEnabled, &true);
+        env.storage()
+            .instance()
+            .set(&StorageKey::MinQuorumBps, &DEFAULT_MIN_QUORUM_BPS);
+        env.storage()
+            .instance()
+            .set(&StorageKey::ProposalCount, &0_u64);
         Ok(())
     }
 
-    // ── create_proposal ───────────────────────────────────────────
+    /// Returns the configured minimum quorum in bps (e.g. 1000 = 10%).
+    pub fn get_min_quorum_bps(env: Env) -> u32 {
+        env.storage()
+            .instance()
+            .get(&StorageKey::MinQuorumBps)
+            .unwrap_or(DEFAULT_MIN_QUORUM_BPS)
+    }
+
+    /// Updates the minimum quorum configuration.
+    ///
+    /// Authorization: the configured ILN contract address must authorize.
+    pub fn set_min_quorum_bps(env: Env, min_quorum_bps: u32) -> Result<(), GovernanceError> {
+        if min_quorum_bps == 0 || min_quorum_bps > 10_000 {
+            return Err(GovernanceError::InvalidQuorumBps);
+        }
+
+        let iln_contract: Address = env
+            .storage()
+            .instance()
+            .get(&StorageKey::IlnContract)
+            .unwrap();
+        iln_contract.require_auth();
+
+        env.storage()
+            .instance()
+            .set(&StorageKey::MinQuorumBps, &min_quorum_bps);
+        Ok(())
+    }
+
+    // ── Issue #59 / feat/create-proposal ─────────────────────────
 
     pub fn create_proposal(
         env: Env,
@@ -173,37 +287,95 @@ impl GovContract {
     ) -> Result<u64, GovernanceError> {
         proposer.require_auth();
 
-        let count: u64 = env.storage().instance().get(&StorageKey::ProposalCount).unwrap_or(0);
+        // ── Balance check ─────────────────────────────────────────
+        let token_addr: Address = env.storage().instance().get(&StorageKey::GovToken).unwrap();
+        let token = TokenClient::new(&env, &token_addr);
+        let proposer_balance = token.balance(&proposer);
+
+        let min_balance: i128 = env
+            .storage()
+            .instance()
+            .get(&StorageKey::MinProposalBalance)
+            .unwrap_or(DEFAULT_MIN_PROPOSAL_BALANCE);
+
+        if proposer_balance < min_balance {
+            return Err(GovernanceError::InsufficientProposerBalance);
+        }
+
+        let count: u64 = env
+            .storage()
+            .instance()
+            .get(&StorageKey::ProposalCount)
+            .unwrap_or(0);
         let id = count + 1;
 
         let now = env.ledger().timestamp();
-        let voting_end = now + 259_200;
+        let voting_end = now + VOTING_PERIOD_SECS;
 
         let proposal = GovernanceProposal {
             id,
             proposer: proposer.clone(),
             description_hash,
-            action_type,
+            action_type: action_type.clone(),
             proposed_value,
             status: ProposalStatus::Active,
             votes_for: 0,
             votes_against: 0,
             created_at: now,
             voting_end,
+            eta_ledger: 0,
         };
 
-        let token_addr: Address = env.storage().instance().get(&StorageKey::GovToken).unwrap();
-        let token = TokenClient::new(&env, &token_addr);
-        let proposer_weight = token.balance(&proposer);
+        // Snapshot the proposer's balance at proposal creation time.
         env.storage().persistent().set(
             &StorageKey::VoteWeightSnapshot(id, proposer.clone()),
-            &proposer_weight,
+            &proposer_balance,
         );
 
-        env.storage().persistent().set(&StorageKey::Proposal(id), &proposal);
-        env.storage().instance().set(&StorageKey::ProposalCount, &id);
+        env.storage()
+            .persistent()
+            .set(&StorageKey::Proposal(id), &proposal);
+        env.storage()
+            .instance()
+            .set(&StorageKey::ProposalCount, &id);
+
+        env.events().publish_event(&ProposalCreated {
+            proposal_id: id,
+            proposer,
+            action_type,
+            proposed_value,
+            voting_end,
+        });
 
         Ok(id)
+    }
+
+    /// Returns the configured minimum proposer balance.
+    pub fn get_min_proposal_balance(env: Env) -> i128 {
+        env.storage()
+            .instance()
+            .get(&StorageKey::MinProposalBalance)
+            .unwrap_or(DEFAULT_MIN_PROPOSAL_BALANCE)
+    }
+
+    /// Updates the minimum proposer balance.
+    ///
+    /// Authorization: the configured ILN contract address must authorize.
+    pub fn set_min_proposal_balance(
+        env: Env,
+        min_balance: i128,
+    ) -> Result<(), GovernanceError> {
+        let iln_contract: Address = env
+            .storage()
+            .instance()
+            .get(&StorageKey::IlnContract)
+            .unwrap();
+        iln_contract.require_auth();
+
+        env.storage()
+            .instance()
+            .set(&StorageKey::MinProposalBalance, &min_balance);
+        Ok(())
     }
 
     // ── Issue #64: delegate_votes ─────────────────────────────────
@@ -250,7 +422,7 @@ impl GovContract {
         if let Some(old_delegate) = Self::get_delegate_raw(&env, &delegator) {
             let old_terminal = Self::resolve_terminal(&env, &old_delegate);
             let delegator_balance = Self::get_own_balance_for_delegation(&env, &delegator);
-            Self::adjust_delegated_to_me(&env, &old_terminal, -(delegator_balance as i128));
+            Self::adjust_delegated_to_me(&env, &old_terminal, -delegator_balance);
         }
 
         // ── Store forward pointer ─────────────────────────────────
@@ -260,9 +432,12 @@ impl GovContract {
 
         // ── Add weight to new terminal ────────────────────────────
         let delegator_balance = Self::get_own_balance_for_delegation(&env, &delegator);
-        Self::adjust_delegated_to_me(&env, &terminal, delegator_balance as i128);
+        Self::adjust_delegated_to_me(&env, &terminal, delegator_balance);
 
-        env.events().publish_event(&VotesDelegated { delegator, delegate });
+        env.events().publish_event(&VotesDelegated {
+            delegator,
+            delegate,
+        });
 
         Ok(())
     }
@@ -278,7 +453,7 @@ impl GovContract {
         if let Some(old_delegate) = Self::get_delegate_raw(&env, &delegator) {
             let old_terminal = Self::resolve_terminal(&env, &old_delegate);
             let delegator_balance = Self::get_own_balance_for_delegation(&env, &delegator);
-            Self::adjust_delegated_to_me(&env, &old_terminal, -(delegator_balance as i128));
+            Self::adjust_delegated_to_me(&env, &old_terminal, -delegator_balance);
 
             env.storage()
                 .persistent()
@@ -372,9 +547,48 @@ impl GovContract {
             .persistent()
             .set(&StorageKey::Proposal(proposal_id), &proposal);
 
-        env.events().publish_event(&VoteCast { proposal_id, voter, support, weight });
+        env.events().publish_event(&VoteCast {
+            proposal_id,
+            voter,
+            support,
+            weight,
+        });
 
         Ok(())
+    }
+
+    // ── Issue #62: set_execution_delay / get_execution_delay ──
+
+    pub fn set_execution_delay(
+        env: Env,
+        admin: Address,
+        delay: u32,
+    ) -> Result<(), GovernanceError> {
+        admin.require_auth();
+
+        if let Some(stored_admin) = env
+            .storage()
+            .instance()
+            .get::<StorageKey, Address>(&StorageKey::Admin)
+        {
+            if admin != stored_admin {
+                return Err(GovernanceError::Unauthorized);
+            }
+        } else {
+            env.storage().instance().set(&StorageKey::Admin, &admin);
+        }
+
+        env.storage()
+            .instance()
+            .set(&StorageKey::ExecutionDelay, &delay);
+        Ok(())
+    }
+
+    pub fn get_execution_delay(env: Env) -> u32 {
+        env.storage()
+            .instance()
+            .get(&StorageKey::ExecutionDelay)
+            .unwrap_or(0)
     }
 
     // ── execute_proposal ─────────────────────────────────────────
@@ -394,52 +608,207 @@ impl GovContract {
         if now < proposal.voting_end {
             return Err(GovernanceError::VotingOngoing);
         }
-        if proposal.status != ProposalStatus::Active {
-            return Err(GovernanceError::AlreadyResolved);
+
+        if proposal.status == ProposalStatus::Active {
+            let total_votes = proposal.votes_for + proposal.votes_against;
+            let min_quorum_bps: u32 = env
+                .storage()
+                .instance()
+                .get(&StorageKey::MinQuorumBps)
+                .unwrap_or(DEFAULT_MIN_QUORUM_BPS);
+            let quorum = if total_supply <= 0 {
+                0_i128
+            } else {
+                total_supply
+                    .saturating_mul(min_quorum_bps as i128)
+                    / 10_000_i128
+            };
+
+            if total_votes < quorum {
+                proposal.status = ProposalStatus::Rejected;
+                env.storage()
+                    .persistent()
+                    .set(&StorageKey::Proposal(proposal_id), &proposal);
+                return Err(GovernanceError::QuorumNotReached);
+            }
+
+            if proposal.votes_for <= proposal.votes_against {
+                proposal.status = ProposalStatus::Rejected;
+                env.storage()
+                    .persistent()
+                    .set(&StorageKey::Proposal(proposal_id), &proposal);
+                return Err(GovernanceError::ProposalRejected);
+            }
+
+            proposal.status = ProposalStatus::Passed;
+
+            let delay = env
+                .storage()
+                .instance()
+                .get(&StorageKey::ExecutionDelay)
+                .unwrap_or(0_u32);
+            proposal.eta_ledger = env.ledger().sequence() + delay;
+
+            env.storage()
+                .persistent()
+                .set(&StorageKey::Proposal(proposal_id), &proposal);
+            return Ok(());
         }
 
-        let total_votes = proposal.votes_for + proposal.votes_against;
-        let quorum = total_supply / 10;
+        if proposal.status == ProposalStatus::Passed {
+            let current_ledger = env.ledger().sequence();
+            if current_ledger < proposal.eta_ledger {
+                return Err(GovernanceError::TimelockNotExpired);
+            }
 
-        if total_votes < quorum {
-            proposal.status = ProposalStatus::Rejected;
-            env.storage().persistent().set(&StorageKey::Proposal(proposal_id), &proposal);
-            return Err(GovernanceError::QuorumNotReached);
+            let iln_contract: Address = env
+                .storage()
+                .instance()
+                .get(&StorageKey::IlnContract)
+                .unwrap();
+
+            match proposal.action_type.clone() {
+                ProposalAction::UpdateFeeRate(rate) => {
+                    let args: Vec<soroban_sdk::Val> = vec![&env, rate.into_val(&env)];
+                    env.invoke_contract::<()>(
+                        &iln_contract,
+                        &Symbol::new(&env, "update_fee_rate"),
+                        args,
+                    );
+                }
+                ProposalAction::AddToken(token) => {
+                    let args: Vec<soroban_sdk::Val> = vec![&env, token.into_val(&env)];
+                    env.invoke_contract::<()>(&iln_contract, &Symbol::new(&env, "add_token"), args);
+                }
+                ProposalAction::RemoveToken(token) => {
+                    let args: Vec<soroban_sdk::Val> = vec![&env, token.into_val(&env)];
+                    env.invoke_contract::<()>(
+                        &iln_contract,
+                        &Symbol::new(&env, "remove_token"),
+                        args,
+                    );
+                }
+                ProposalAction::UpdateMaxDiscountRate(rate) => {
+                    let args: Vec<soroban_sdk::Val> = vec![&env, rate.into_val(&env)];
+                    env.invoke_contract::<()>(
+                        &iln_contract,
+                        &Symbol::new(&env, "update_max_discount"),
+                        args,
+                    );
+                }
+            }
+
+            proposal.status = ProposalStatus::Executed;
+            env.storage()
+                .persistent()
+                .set(&StorageKey::Proposal(proposal_id), &proposal);
+
+            env.events().publish_event(&ProposalExecuted {
+                proposal_id,
+                action_type: proposal.action_type,
+                proposed_value: proposal.proposed_value,
+                votes_for: proposal.votes_for,
+                votes_against: proposal.votes_against,
+            });
+
+            return Ok(());
         }
 
-        if proposal.votes_for <= proposal.votes_against {
-            proposal.status = ProposalStatus::Rejected;
-            env.storage().persistent().set(&StorageKey::Proposal(proposal_id), &proposal);
-            return Err(GovernanceError::ProposalRejected);
+        Err(GovernanceError::AlreadyResolved)
+    }
+
+    // ── Issue #68: veto_proposal ──────────────────────────────────
+
+    /// Veto an active (or passed) proposal, transitioning it to `Vetoed` status.
+    ///
+    /// * Only the stored admin may call this function.
+    /// * The admin veto power must still be enabled; it cannot be used after
+    ///   governance has called `disable_veto_power()`.
+    /// * Only proposals in `Active` or `Passed` status can be vetoed — an
+    ///   already-executed or already-vetoed proposal is not vetoable.
+    ///
+    /// Emits `ProposalVetoed { proposal_id, admin, reason_hash }`.
+    pub fn veto_proposal(
+        env: Env,
+        proposal_id: u64,
+        reason_hash: BytesN<32>,
+    ) -> Result<(), GovernanceError> {
+        // ── Auth: only admin ──────────────────────────────────────
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&StorageKey::Admin)
+            .unwrap();
+        admin.require_auth();
+
+        // ── Guard: veto power must still be enabled ───────────────
+        let enabled: bool = env
+            .storage()
+            .instance()
+            .get(&StorageKey::VetoPowerEnabled)
+            .unwrap_or(false);
+        if !enabled {
+            return Err(GovernanceError::VetoPowerDisabled);
         }
 
-        proposal.status = ProposalStatus::Passed;
+        // ── Load proposal ─────────────────────────────────────────
+        let mut proposal: GovernanceProposal = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::Proposal(proposal_id))
+            .ok_or(GovernanceError::ProposalNotFound)?;
 
-        let iln_contract: Address = env.storage().instance().get(&StorageKey::IlnContract).unwrap();
-
-        match proposal.action_type.clone() {
-            ProposalAction::UpdateFeeRate(rate) => {
-                let args: Vec<soroban_sdk::Val> = vec![&env, rate.into_val(&env)];
-                env.invoke_contract::<()>(&iln_contract, &Symbol::new(&env, "update_fee_rate"), args);
-            }
-            ProposalAction::AddToken(token) => {
-                let args: Vec<soroban_sdk::Val> = vec![&env, token.into_val(&env)];
-                env.invoke_contract::<()>(&iln_contract, &Symbol::new(&env, "add_token"), args);
-            }
-            ProposalAction::RemoveToken(token) => {
-                let args: Vec<soroban_sdk::Val> = vec![&env, token.into_val(&env)];
-                env.invoke_contract::<()>(&iln_contract, &Symbol::new(&env, "remove_token"), args);
-            }
-            ProposalAction::UpdateMaxDiscountRate(rate) => {
-                let args: Vec<soroban_sdk::Val> = vec![&env, rate.into_val(&env)];
-                env.invoke_contract::<()>(&iln_contract, &Symbol::new(&env, "update_max_discount"), args);
-            }
+        // ── Guard: only Active or Passed proposals are vetoable ───
+        match proposal.status {
+            ProposalStatus::Active | ProposalStatus::Passed => {}
+            _ => return Err(GovernanceError::NotVetoable),
         }
 
-        proposal.status = ProposalStatus::Executed;
-        env.storage().persistent().set(&StorageKey::Proposal(proposal_id), &proposal);
+        proposal.status = ProposalStatus::Vetoed;
+        env.storage()
+            .persistent()
+            .set(&StorageKey::Proposal(proposal_id), &proposal);
+
+        env.events().publish_event(&ProposalVetoed {
+            proposal_id,
+            admin,
+            reason_hash,
+        });
 
         Ok(())
+    }
+
+    // ── Issue #68: disable_veto_power ─────────────────────────────
+
+    /// Permanently disable the admin veto power.
+    ///
+    /// Authorization: the configured ILN contract address must authorize
+    /// (same pattern used by `set_min_quorum_bps` — governance votes trigger
+    /// this via a cross-contract call from the ILN contract).
+    ///
+    /// Once disabled this cannot be re-enabled; it is a one-way switch
+    /// intended to be called before mainnet launch.
+    pub fn disable_veto_power(env: Env) -> Result<(), GovernanceError> {
+        let iln_contract: Address = env
+            .storage()
+            .instance()
+            .get(&StorageKey::IlnContract)
+            .unwrap();
+        iln_contract.require_auth();
+
+        env.storage()
+            .instance()
+            .set(&StorageKey::VetoPowerEnabled, &false);
+
+        Ok(())
+    }
+
+    /// Returns `true` when admin veto power is still active.
+    pub fn is_veto_power_enabled(env: Env) -> bool {
+        env.storage()
+            .instance()
+            .get(&StorageKey::VetoPowerEnabled)
+            .unwrap_or(false)
     }
 
     // ── Getters ──────────────────────────────────────────────────
@@ -451,6 +820,54 @@ impl GovContract {
             .ok_or(GovernanceError::ProposalNotFound)
     }
 
+    pub fn list_proposals(
+        env: Env,
+        status: Option<ProposalStatus>,
+        page: u32,
+        page_size: u32,
+    ) -> Vec<GovernanceProposal> {
+        let count: u64 = env
+            .storage()
+            .instance()
+            .get(&StorageKey::ProposalCount)
+            .unwrap_or(0);
+
+        let mut result = Vec::new(&env);
+        if count == 0 || page_size == 0 {
+            return result;
+        }
+
+        let actual_page_size = if page_size > 20 { 20 } else { page_size };
+        let skip = (page * actual_page_size) as u64;
+        let mut skipped = 0_u64;
+
+        for id in (1..=count).rev() {
+            if let Some(proposal) = env
+                .storage()
+                .persistent()
+                .get::<_, GovernanceProposal>(&StorageKey::Proposal(id))
+            {
+                let matches_status = match &status {
+                    Some(s) => &proposal.status == s,
+                    None => true,
+                };
+
+                if matches_status {
+                    if skipped < skip {
+                        skipped += 1;
+                    } else {
+                        result.push_back(proposal);
+                        if result.len() == actual_page_size {
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        result
+    }
+
     pub fn has_voted(env: Env, voter: Address, proposal_id: u64) -> bool {
         env.storage()
             .temporary()
@@ -460,7 +877,9 @@ impl GovContract {
     // ── Private helpers ──────────────────────────────────────────
 
     fn get_delegate_raw(env: &Env, addr: &Address) -> Option<Address> {
-        env.storage().persistent().get(&StorageKey::Delegation(addr.clone()))
+        env.storage()
+            .persistent()
+            .get(&StorageKey::Delegation(addr.clone()))
     }
 
     /// Walk forward pointers to find the terminal node (one with no further delegate).

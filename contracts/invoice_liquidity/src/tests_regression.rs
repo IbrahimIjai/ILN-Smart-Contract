@@ -51,8 +51,9 @@ fn setup_regression() -> RegressionTestEnv {
     let xlm_admin = Address::generate(&env);
     let xlm_contract_id = env.register_stellar_asset_contract_v2(xlm_admin);
     let xlm_address = xlm_contract_id.address();
+    let eurc_address = Address::generate(&env);
 
-    contract.initialize(&usdc_admin, &usdc_address, &xlm_address);
+    contract.initialize(&usdc_admin, &usdc_address, &eurc_address, &xlm_address);
 
     let mut ledger_info = env.ledger().get();
     ledger_info.timestamp = 1_700_000_000;
@@ -95,7 +96,7 @@ fn regression_wasm32_target_independence() {
     assert_eq!(id, 1);
 
     // Fund the invoice
-    t.contract.fund_invoice(&t.funder, &id, &ONE_USDC);
+    t.contract.fund_invoice(&t.funder, &id, &ONE_USDC, &false);
 
     // Verify funding worked
     let invoice = t.contract.get_invoice(&id);
@@ -131,7 +132,7 @@ fn regression_discount_rounding_minimum_amount() {
     assert_eq!(invoice.discount_rate, ONE_BPS);
 
     // Fund the invoice and verify the discount calculation doesn't underflow
-    t.contract.fund_invoice(&t.funder, &id, &ONE_USDC);
+    t.contract.fund_invoice(&t.funder, &id, &ONE_USDC, &false);
 
     // Verify final state - should have funded amount, not negative
     let funded_invoice = t.contract.get_invoice(&id);
@@ -292,7 +293,7 @@ fn regression_fund_exact_amount_no_dust() {
     let funder_balance_before = t.token.balance(&t.funder);
 
     // Fund exactly the invoice amount
-    t.contract.fund_invoice(&t.funder, &id, &ONE_USDC);
+    t.contract.fund_invoice(&t.funder, &id, &ONE_USDC, &false);
 
     // Verify invoice is fully funded
     let invoice = t.contract.get_invoice(&id);

@@ -1,8 +1,7 @@
 #![cfg(test)]
 
-use super::*;
 use crate::test::setup;
-use soroban_sdk::{testutils::Address as _, token::StellarAssetClient, Address, Vec};
+use soroban_sdk::{testutils::Address as _, token::StellarAssetClient, Address};
 
 #[test]
 fn test_list_invoices_by_lp_pagination() {
@@ -28,7 +27,7 @@ fn test_list_invoices_by_lp_pagination() {
             &t.token.address,
         );
         t.contract
-            .fund_invoice(&lp, &id, &(1_000_000_000 + i as i128));
+            .fund_invoice(&lp, &id, &(1_000_000_000 + i as i128, &false));
     }
 
     // Page 0, size 2
@@ -76,8 +75,8 @@ fn test_list_invoices_by_lp_no_duplicates_on_partial_funding() {
     );
 
     // Fund partially twice
-    t.contract.fund_invoice(&lp, &id, &500_000_000);
-    t.contract.fund_invoice(&lp, &id, &500_000_000);
+    t.contract.fund_invoice(&lp, &id, &500_000_000, &false);
+    t.contract.fund_invoice(&lp, &id, &500_000_000, &false);
 
     // Should only appear once in LP index
     let result = t.contract.list_invoices_by_lp(&lp, &0, &10);
@@ -110,8 +109,8 @@ fn test_list_invoices_by_lp_multiple_lps() {
     );
 
     // lp1 funds half, lp2 funds half
-    t.contract.fund_invoice(&lp1, &id, &500_000_000);
-    t.contract.fund_invoice(&lp2, &id, &500_000_000);
+    t.contract.fund_invoice(&lp1, &id, &500_000_000, &false);
+    t.contract.fund_invoice(&lp2, &id, &500_000_000, &false);
 
     // Both should see the invoice
     assert_eq!(t.contract.list_invoices_by_lp(&lp1, &0, &10).len(), 1);

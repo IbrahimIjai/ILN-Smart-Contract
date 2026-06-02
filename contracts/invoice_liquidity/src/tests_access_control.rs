@@ -3,13 +3,8 @@
 use super::*;
 use soroban_sdk::{
     testutils::{Address as _, Ledger, MockAuth, MockAuthInvoke},
-    token::StellarAssetClient,
-    vec, Address, Env, IntoVal, Symbol,
+    Address, Env, IntoVal,
 };
-
-const INVOICE_AMOUNT: i128 = 1_000_000_000;
-const DISCOUNT_RATE: u32 = 300;
-const DUE_DATE_OFFSET: u64 = 60 * 60 * 24 * 30;
 
 fn setup_env() -> (
     Env,
@@ -42,7 +37,7 @@ fn setup_env() -> (
 
 #[test]
 fn test_admin_violations() {
-    let (env, admin, _, client) = setup_env();
+    let (env, _admin, _, client) = setup_env();
     let imposter = Address::generate(&env);
     let new_admin = Address::generate(&env);
 
@@ -75,7 +70,7 @@ fn test_admin_violations() {
 
 #[test]
 fn test_public_methods() {
-    let (env, _admin, _, client) = setup_env();
+    let (_env, _admin, _, client) = setup_env();
 
     // Anyone can read contract stats without mock auth
     let stats = client.get_contract_stats();

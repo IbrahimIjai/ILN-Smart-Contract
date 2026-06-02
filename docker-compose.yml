@@ -1,0 +1,37 @@
+# Local Stellar Network for ILN Smart Contract Development
+# Usage: docker compose up -d stellar
+# Check health: docker compose logs -f stellar | grep "ready"
+# Stop: docker compose down
+
+version: '3.8'
+
+services:
+  stellar:
+    image: stellar/stellar-quickstart:latest
+    container_name: iln-stellar-local
+    ports:
+      - "8000:8000"     # HTTP RPC port
+      - "11626:11626"   # Peer port
+    environment:
+      # Standalone mode for local development
+      - NETWORK_MODE=standalone
+      - STELLAR_NETWORK_ID=local
+      - FAST_START=true
+    volumes:
+      # Persist Stellar data across container restarts
+      - stellar-data:/opt/stellar
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/ledger"]
+      interval: 5s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
+volumes:
+  stellar-data:
+    driver: local
+
+networks:
+  default:
+    name: iln-local-network

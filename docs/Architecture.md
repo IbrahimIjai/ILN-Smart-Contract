@@ -1,5 +1,8 @@
 # ILN Technical Architecture
 
+> **Design rationale:** The major design choices behind this architecture are
+> documented as Architecture Decision Records in [`docs/adr/`](adr/README.md).
+
 ## Overview
 
 Invoice Liquidity Network is a two-sided protocol on Stellar that connects invoice holders (freelancers, SMEs) with liquidity providers (DeFi users). The core logic lives in a single Soroban smart contract that acts as a trustless escrow — holding funds, enforcing payment terms, and releasing money automatically based on on-chain state.

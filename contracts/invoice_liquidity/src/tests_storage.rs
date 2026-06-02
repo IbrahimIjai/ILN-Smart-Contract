@@ -2,7 +2,6 @@
 
 use super::*;
 use crate::invoice::InvoiceStatus;
-use crate::storage::DataKey;
 use soroban_sdk::{
     testutils::{storage::Persistent, Address as _, Ledger},
     token::{Client as TokenClient, StellarAssetClient},
@@ -41,7 +40,9 @@ fn setup() -> TestEnv {
     let xlm_admin = Address::generate(&env);
     let xlm_address = env.register_stellar_asset_contract_v2(xlm_admin).address();
 
-    contract.initialize(&usdc_admin, &usdc_address, &xlm_address);
+    let eurc_address = Address::generate(&env);
+
+    contract.initialize(&usdc_admin, &usdc_address, &eurc_address, &xlm_address);
 
     TestEnv {
         env,
@@ -75,9 +76,8 @@ fn test_submit_invoice_sets_ttl() {
 
     // Check that TTL is set
     assert!(ttl > 0);
-
-    // Verify InvoiceCount TTL as well
-    let count_key = crate::storage::DataKey::InvoiceCount;
+    // Verify aggregate counter TTL as well
+    let count_key = crate::storage::DataKey::TotalInvoices;
     let count_ttl = t.env.as_contract(&t.contract.address, || {
         t.env.storage().persistent().get_ttl(&count_key)
     });
@@ -111,7 +111,7 @@ fn test_fund_invoice_extends_ttl() {
     t.env.ledger().set(ledger);
 
     // Call fund_invoice which should refresh the TTL on the entry
-    t.contract.fund_invoice(&t.funder, &id, &amount);
+    t.contract.fund_invoice(&t.funder, &id, &amount, &false);
 
     let updated_ttl = t.env.as_contract(&t.contract.address, || {
         t.env.storage().persistent().get_ttl(&key)
