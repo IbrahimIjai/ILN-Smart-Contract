@@ -271,6 +271,18 @@ pub fn remove_invoice_from_lp(env: &Env, lp: &Address, invoice_id: u64) {
 
 pub fn save_invoice(env: &Env, invoice: &Invoice) {
     let key = StorageKey::Invoice(invoice.id);
+    
+    // Track state count changes
+    if let Some(old_invoice) = env.storage().persistent().get::<_, Invoice>(&key) {
+        if old_invoice.status != invoice.status {
+            crate::storage::decrement_state_count(env, &old_invoice.status);
+            crate::storage::increment_state_count(env, &invoice.status);
+        }
+    } else {
+        // New invoice
+        crate::storage::increment_state_count(env, &invoice.status);
+    }
+    
     env.storage().persistent().set(&key, invoice);
     env.storage()
         .persistent()

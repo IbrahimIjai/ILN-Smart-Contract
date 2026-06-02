@@ -10,12 +10,16 @@ pub enum DataKey {
     Admin,
     Config,
     FeeRate,
+    ProtocolFeeBps,
+    TreasuryAddress,
     MaxDiscountRate,
     DistributionContract,
     Paused,
     /// Minimum payer reputation required to fund an invoice (Issue #28). Default 0.
     MinPayerReputation,
     /// auto-increment counter for IDs (moved to instance for optimization)
+    /// Reentrancy guard lock flag
+    ReentrancyLock,
     NextInvoiceId,
     /// ContractStats struct (Issue #optimization)
     Stats,
@@ -63,6 +67,8 @@ pub enum DataKey {
     MultisigProposal(u64),
     /// Issue #116: Per-LP portfolio analytics snapshot
     LPPortfolioStats(Address),
+    /// Issue #115: Count of invoices by state
+    InvoiceStateCount(crate::invoice::InvoiceStatus),
 }
 
 // ----------------------------------------------------------------
@@ -97,6 +103,23 @@ pub fn set_paused(env: &Env, paused: bool) {
 }
 
 pub fn get_min_payer_reputation(env: &Env) -> u32 {
+// ----------------------------------------------------------------
+// Invoice Helpers
+// ----------------------------------------------------------------
+
+pub fn save_invoice(env: &Env, invoice: &Invoice) {
+    let key = DataKey::Invoice(invoice.id);
+    
+    if let Some(old_invoice) = env.storage().persistent().get::<_, Invoice>(&key) {
+        if old_invoice.status != invoice.status {
+            decrement_state_count(env, &old_invoice.status);
+            increment_state_count(env, &invoice.status);
+        }
+    } else {
+        increment_state_count(env, &invoice.status);
+    }
+    
+    env.storage().persistent().set(&key, invoice);
     env.storage()
         .instance()
         .get(&DataKey::MinPayerReputation)
@@ -217,9 +240,112 @@ pub fn get_contract_stats(env: &Env) -> ContractStats {
 
 pub fn save_contract_stats(env: &Env, stats: &ContractStats) {
     env.storage().instance().set(&DataKey::Stats, stats);
+pub fn increment_total_paid(env: &Env) {
+    let current: u64 = env
+        .storage()
+        .persistent()
+        .get(&DataKey::TotalPaid)
+        .unwrap_or(0);
+    env.storage()
+        .persistent()
+        .set(&DataKey::TotalPaid, &(current + 1));
+}
+
+pub fn get_state_count(env: &Env, state: &crate::invoice::InvoiceStatus) -> u64 {
+    env.storage()
+        .persistent()
+        .get(&DataKey::InvoiceStateCount(state.clone()))
+        .unwrap_or(0)
+}
+
+pub fn increment_state_count(env: &Env, state: &crate::invoice::InvoiceStatus) {
+    let current = get_state_count(env, state);
+    env.storage()
+        .persistent()
+        .set(&DataKey::InvoiceStateCount(state.clone()), &(current + 1));
+}
+
+pub fn decrement_state_count(env: &Env, state: &crate::invoice::InvoiceStatus) {
+    let current = get_state_count(env, state);
+    if current > 0 {
+        let new_val = current - 1;
+        let key = DataKey::InvoiceStateCount(state.clone());
+        if new_val == 0 {
+            if env.storage().persistent().has(&key) {
+                env.storage().persistent().remove(&key);
+            }
+        } else {
+            env.storage().persistent().set(&key, &new_val);
+        }
+    }
+}
+
+pub fn add_volume(
+    env: &Env,
+    token: &Address,
+    amount: i128,
+    usdc_addr: &Address,
+    eurc_addr: &Address,
+    xlm_addr: &Address,
+) {
+    if token == usdc_addr {
+        let current: i128 = env
+            .storage()
+            .persistent()
+            .get(&DataKey::TotalVolumeUsdc)
+            .unwrap_or(0);
+        env.storage()
+            .persistent()
+            .set(&DataKey::TotalVolumeUsdc, &(current + amount));
+    } else if token == eurc_addr {
+        let current: i128 = env
+            .storage()
+            .persistent()
+            .get(&DataKey::TotalVolumeEurc)
+            .unwrap_or(0);
+        env.storage()
+            .persistent()
+            .set(&DataKey::TotalVolumeEurc, &(current + amount));
+    } else if token == xlm_addr {
+        let current: i128 = env
+            .storage()
+            .persistent()
+            .get(&DataKey::TotalVolumeXlm)
+            .unwrap_or(0);
+        env.storage()
+            .persistent()
+            .set(&DataKey::TotalVolumeXlm, &(current + amount));
+    }
 }
 
 // ----------------------------------------------------------------
+// Reentrancy Guard
+// ----------------------------------------------------------------
+
+use crate::errors::ContractError;
+
+/// Calls the provided closure with a reentrancy lock set in instance storage.
+/// Returns Error::Reentrancy if already locked.
+pub fn with_reentrancy_guard<F, R>(env: &Env, f: F) -> Result<R, ContractError>
+where
+    F: FnOnce() -> Result<R, ContractError>,
+{
+    let locked: bool = env
+        .storage()
+        .instance()
+        .get(&DataKey::ReentrancyLock)
+        .unwrap_or(false);
+    if locked {
+        return Err(ContractError::Reentrancy);
+    }
+    env.storage()
+        .instance()
+        .set(&DataKey::ReentrancyLock, &true);
+    let result = f();
+    env.storage()
+        .instance()
+        .set(&DataKey::ReentrancyLock, &false);
+    result
 // Multi-sig Admin Helpers (Issue #124)
 // ----------------------------------------------------------------
 

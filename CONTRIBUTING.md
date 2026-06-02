@@ -40,6 +40,17 @@ BREAKING CHANGE: fund_invoice has been renamed to fund in the invoice_liquidity 
 ```
 
 
+## 🎨 Formatting
+
+All code must be formatted with `rustfmt` before committing. CI will reject unformatted code.
+
+```bash
+cargo fmt --all
+```
+
+Project-specific settings are in [`rustfmt.toml`](rustfmt.toml) (`max_width = 100`, `edition = "2021"`).
+
+
 ## 🧪 Testing
 1. [Environment Setup](#1-environment-setup)
 2. [Building the Contracts](#2-building-the-contracts)

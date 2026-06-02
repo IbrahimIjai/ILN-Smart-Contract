@@ -131,6 +131,16 @@ pub struct InvoicePartiallyPaid {
     pub remaining_amount: i128,
 }
 
+#[contractevent(topics = ["fees_collected"])]
+#[derive(Clone, Debug, PartialEq)]
+pub struct FeesCollected {
+    #[topic]
+    pub invoice_id: u64,
+    pub fee_amount: i128,
+    #[topic]
+    pub treasury: Address,
+}
+
 #[contractevent(topics = ["paused"])]
 #[derive(Clone, Debug, PartialEq)]
 pub struct ContractPaused {
