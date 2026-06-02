@@ -98,8 +98,14 @@ For a more detailed walkthrough (testnet account setup, troubleshooting) see
 cargo build
 
 # Optimised WASM build (required before deployment)
-cargo build-wasm
-# equivalent to: cargo build --target wasm32v1-none --release
+cargo build --release --target wasm32-unknown-unknown
+
+# Alternative Soroban-specific optimized build
+# `cargo build-wasm` is a workspace alias defined in `.cargo/config.toml`.
+# It builds optimized WASM to the Soroban-specific target:
+# cargo build --target wasm32v1-none --release
+# or use the Makefile shortcut:
+# make soroban-optimize
 ```
 
 WASM output lands in `target/wasm32v1-none/release/*.wasm`.

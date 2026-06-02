@@ -1,7 +1,10 @@
-.PHONY: build test fuzz changelog
+.PHONY: build test fuzz changelog soroban-optimize
 
 build:
 	cargo build --target wasm32v1-none --release
+
+soroban-optimize:
+	cargo build --release --target wasm32-unknown-unknown
 
 test:
 	cargo test
