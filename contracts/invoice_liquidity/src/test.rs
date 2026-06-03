@@ -209,11 +209,31 @@ fn test_submit_multiple_invoices_increment_ids() {
     assert_eq!(id3, 3);
 }
 
+// ----------------------------------------------------------------
+// submit_invoices_batch
+// ----------------------------------------------------------------
+
+/// Build a fully-populated, valid `InvoiceParams` for batch tests (Issue #120).
+fn batch_params(t: &TestEnv, due_date: u64) -> InvoiceParams {
+    InvoiceParams {
+        freelancer: t.freelancer.clone(),
+        payer: t.payer.clone(),
+        amount: INVOICE_AMOUNT,
+        due_date,
+        discount_rate: DISCOUNT_RATE,
+        token: t.token.address.clone(),
+        referral_code: None,
+        allowed_lps: None,
+    }
+}
+
 #[test]
 fn test_submit_invoices_batch_happy_path() {
     let t = setup();
     let due_date = t.env.ledger().timestamp() + DUE_DATE_OFFSET;
     
+    let params = batch_params(&t, due_date);
+
     let mut batch = Vec::new(&t.env);
     for _ in 0..3 {
         batch.push_back(InvoiceParams {
@@ -238,6 +258,164 @@ fn test_submit_invoices_batch_happy_path() {
 
 #[test]
 fn test_update_invoice_happy_path() {
+    assert_eq!(t.contract.get_invoice_count(&None), 3);
+}
+
+#[test]
+fn test_submit_invoices_batch_max_size_succeeds() {
+    let t = setup();
+    let due_date = t.env.ledger().timestamp() + DUE_DATE_OFFSET;
+    let params = batch_params(&t, due_date);
+
+    // Exactly MAX_BATCH_SIZE (50) invoices must succeed.
+    let mut batch = Vec::new(&t.env);
+    for _ in 0..50 {
+        batch.push_back(params.clone());
+    }
+
+    let ids = t.contract.submit_invoices_batch(&batch);
+    assert_eq!(ids.len(), 50);
+    assert_eq!(ids.get(0).unwrap(), 1);
+    assert_eq!(ids.get(49).unwrap(), 50);
+    assert_eq!(t.contract.get_invoice_count(&None), 50);
+}
+
+#[test]
+fn test_submit_invoices_batch_rejects_over_limit() {
+    let t = setup();
+    let due_date = t.env.ledger().timestamp() + DUE_DATE_OFFSET;
+    let params = batch_params(&t, due_date);
+
+    // One past MAX_BATCH_SIZE (51) must be rejected.
+    let mut batch = Vec::new(&t.env);
+    for _ in 0..51 {
+        batch.push_back(params.clone());
+    }
+
+    let result = t.contract.try_submit_invoices_batch(&batch);
+    assert_eq!(result, Err(Ok(ContractError::BatchTooLarge)));
+
+    // Nothing was created.
+    assert_eq!(t.contract.get_invoice_count(&None), 0);
+}
+
+#[test]
+fn test_submit_invoices_batch_atomicity_fail() {
+    let t = setup();
+    let due_date = t.env.ledger().timestamp() + DUE_DATE_OFFSET;
+
+    let mut batch = Vec::new(&t.env);
+
+    // Valid invoice...
+    batch.push_back(batch_params(&t, due_date));
+
+    // ...followed by an invalid one (amount = 0) -> whole batch must revert.
+    let mut bad = batch_params(&t, due_date);
+    bad.amount = 0;
+    batch.push_back(bad);
+
+    let result = t.contract.try_submit_invoices_batch(&batch);
+    assert_eq!(result, Err(Ok(ContractError::InvalidAmount)));
+
+    // Atomicity: the valid invoice before the failure was NOT persisted.
+    assert_eq!(t.contract.get_invoice_count(&None), 0);
+}
+
+// ----------------------------------------------------------------
+// submit_invoice — validation errors
+// ----------------------------------------------------------------
+
+#[test]
+fn test_submit_rejects_zero_amount() {
+    let t = setup();
+    let due_date = t.env.ledger().timestamp() + DUE_DATE_OFFSET;
+
+    let result = t.contract.try_submit_invoice(
+        &t.freelancer,
+        &t.payer,
+        &0,
+        &due_date,
+        &DISCOUNT_RATE,
+        &t.token.address,
+    );
+
+    assert_eq!(result, Err(Ok(ContractError::InvalidAmount)));
+}
+
+#[test]
+fn test_submit_rejects_negative_amount() {
+    let t = setup();
+    let due_date = t.env.ledger().timestamp() + DUE_DATE_OFFSET;
+
+    let result = t.contract.try_submit_invoice(
+        &t.freelancer,
+        &t.payer,
+        &-1,
+        &due_date,
+        &DISCOUNT_RATE,
+        &t.token.address,
+    );
+
+    assert_eq!(result, Err(Ok(ContractError::InvalidAmount)));
+}
+
+#[test]
+fn test_submit_rejects_past_due_date() {
+    let t = setup();
+    let past_due_date = t.env.ledger().timestamp() - 1; // 1 second in the past
+
+    let result = t.contract.try_submit_invoice(
+        &t.freelancer,
+        &t.payer,
+        &INVOICE_AMOUNT,
+        &past_due_date,
+        &DISCOUNT_RATE,
+        &t.token.address,
+    );
+
+    assert_eq!(result, Err(Ok(ContractError::InvalidDueDate)));
+}
+
+#[test]
+fn test_submit_rejects_zero_discount_rate() {
+    let t = setup();
+    let due_date = t.env.ledger().timestamp() + DUE_DATE_OFFSET;
+
+    let result = t.contract.try_submit_invoice(
+        &t.freelancer,
+        &t.payer,
+        &INVOICE_AMOUNT,
+        &due_date,
+        &0,
+        &t.token.address,
+    );
+
+    assert_eq!(result, Err(Ok(ContractError::InvalidDiscountRate)));
+}
+
+#[test]
+fn test_submit_rejects_discount_rate_above_50_percent() {
+    let t = setup();
+    let due_date = t.env.ledger().timestamp() + DUE_DATE_OFFSET;
+
+    let result = t.contract.try_submit_invoice(
+        &t.freelancer,
+        &t.payer,
+        &INVOICE_AMOUNT,
+        &due_date,
+        &5_001, // 50.01% — just over the cap
+        &t.token.address,
+    );
+
+    assert_eq!(result, Err(Ok(ContractError::InvalidDiscountRate)));
+}
+
+// ----------------------------------------------------------------
+// update_invoice
+// ----------------------------------------------------------------
+
+#[test]
+fn test_update_invoice_updates_pending_invoice_fields() {
     let t = setup();
     let id = submit_standard_invoice(&t);
     let updated_amount = INVOICE_AMOUNT + 5_000_000;

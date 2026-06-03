@@ -51,6 +51,21 @@ cargo fmt --all
 Project-specific settings are in [`rustfmt.toml`](rustfmt.toml) (`max_width = 100`, `edition = "2021"`).
 
 
+## 👥 Code Owners
+
+This repo uses a [CODEOWNERS](.github/CODEOWNERS) file to automatically request reviews from the right team on every PR.
+
+| Path | Owner |
+|------|-------|
+| `contracts/` | `@Keengfk/contracts-team` |
+| `docs/` | `@Keengfk/docs-lead` |
+| `scripts/`, `.github/workflows/` | `@Keengfk/devops` |
+| `SECURITY.md` | `@Keengfk/security-lead` |
+| everything else | `@Keengfk/maintainers` |
+
+CODEOWNER approval is required before merging (enforced via branch protection on `main`). To enable this on a new repo, go to **Settings → Branches → Branch protection rules** and check **Require review from Code Owners**.
+
+
 ## 🧪 Testing
 1. [Environment Setup](#1-environment-setup)
 2. [Building the Contracts](#2-building-the-contracts)
