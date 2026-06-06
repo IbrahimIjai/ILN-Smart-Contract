@@ -1,0 +1,1817 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "contract": "InvoiceLiquidityContract",
+  "source": "contracts/invoice_liquidity/src/lib.rs",
+  "generator": "scripts/gen-spec.ts",
+  "note": "Source-derived ABI spec. The canonical embedded spec is produced by `stellar contract inspect --wasm <wasm> --output json` against the built WASM.",
+  "functionCount": 60,
+  "errorCount": 50,
+  "eventCount": 28,
+  "functions": [
+    {
+      "name": "add_token",
+      "doc": "Access: Admin only  Reject tokens that implement fee-on-transfer behavior by ensuring a small token transfer to the contract results in the same amount being received.",
+      "parameters": [
+        {
+          "name": "token",
+          "type": "Address"
+        }
+      ],
+      "returns": "Result<(), ContractError>"
+    },
+    {
+      "name": "appeal_default",
+      "doc": "File an appeal against an unfair default marking.  * `invoice_id`    – the defaulted invoice * `evidence_hash` – SHA-256 hash of off-chain evidence provided by the payer Access: Payer only",
+      "parameters": [
+        {
+          "name": "invoice_id",
+          "type": "u64"
+        },
+        {
+          "name": "evidence_hash",
+          "type": "BytesN<32>"
+        }
+      ],
+      "returns": "Result<(), ContractError>"
+    },
+    {
+      "name": "auto_resolve_dispute",
+      "doc": "Auto-resolve a dispute after the timeout has passed.  * `invoice_id` – the invoice to auto-resolve Access: Anyone",
+      "parameters": [
+        {
+          "name": "invoice_id",
+          "type": "u64"
+        }
+      ],
+      "returns": "Result<(), ContractError>"
+    },
+    {
+      "name": "cancel_invoice",
+      "doc": "Access: Submitter only **Reentrancy Protected:** Yes - This function performs token transfers",
+      "parameters": [
+        {
+          "name": "invoice_id",
+          "type": "u64"
+        }
+      ],
+      "returns": "Result<(), ContractError>"
+    },
+    {
+      "name": "claim_default",
+      "doc": "Access: LP only **Reentrancy Protected:** Yes - This function performs token transfers",
+      "parameters": [
+        {
+          "name": "funder",
+          "type": "Address"
+        },
+        {
+          "name": "invoice_id",
+          "type": "u64"
+        }
+      ],
+      "returns": "Result<(), ContractError>"
+    },
+    {
+      "name": "claim_yield",
+      "doc": "Access: LP only",
+      "parameters": [
+        {
+          "name": "invoice_id",
+          "type": "u64"
+        }
+      ],
+      "returns": "Result<i128, ContractError>"
+    },
+    {
+      "name": "convert_invoice_token",
+      "doc": "Access: Submitter only",
+      "parameters": [
+        {
+          "name": "freelancer",
+          "type": "Address"
+        },
+        {
+          "name": "invoice_id",
+          "type": "u64"
+        },
+        {
+          "name": "new_token",
+          "type": "Address"
+        }
+      ],
+      "returns": "Result<(), ContractError>"
+    },
+    {
+      "name": "dispute_invoice",
+      "doc": "Dispute an invoice before settlement.  * `invoice_id`  – the invoice to dispute * `reason_hash` – SHA-256 hash of off-chain dispute evidence Access: Payer only",
+      "parameters": [
+        {
+          "name": "invoice_id",
+          "type": "u64"
+        },
+        {
+          "name": "reason_hash",
+          "type": "BytesN<32>"
+        }
+      ],
+      "returns": "Result<(), ContractError>"
+    },
+    {
+      "name": "execute_proposal",
+      "doc": "Execute a proposal.  Executes a proposal that has reached the signature threshold. The action (pause/unpause) is immediately applied.  # Arguments - `env`: The Soroban environment - `executor`: The address executing the proposal (must be a signer) - `proposal_id`: The ID of the proposal to execute  # Returns - `Ok(())` if proposal was executed successfully - `Err(ContractError::ThresholdNotReached)` if not enough signatures - `Err(ContractError::ProposalNotFound)` if proposal doesn't exist - `Err(ContractError::ProposalAlreadyExecuted)` if already executed - `Err(ContractError::ProposalExpired)` if outside execution window  Access: Multi-sig authorized signer",
+      "parameters": [
+        {
+          "name": "executor",
+          "type": "Address"
+        },
+        {
+          "name": "proposal_id",
+          "type": "u64"
+        }
+      ],
+      "returns": "Result<(), ContractError>"
+    },
+    {
+      "name": "expire_invoice",
+      "doc": "Access: Anyone",
+      "parameters": [
+        {
+          "name": "invoice_id",
+          "type": "u64"
+        }
+      ],
+      "returns": "Result<(), ContractError>"
+    },
+    {
+      "name": "fund_invoice",
+      "doc": "Access: LP only  `require_oracle_verification` — when `true`, the oracle stored in contract config is queried for the payer's verification status. If the oracle returns `false` (unverified), the call returns `ContractError::PayerUnverified`. When `false`, the oracle is not consulted and the existing behaviour is preserved.",
+      "parameters": [
+        {
+          "name": "funder",
+          "type": "Address"
+        },
+        {
+          "name": "invoice_id",
+          "type": "u64"
+        },
+        {
+          "name": "fund_amount",
+          "type": "i128"
+        },
+        {
+          "name": "require_oracle_verification",
+          "type": "bool"
+        }
+      ],
+      "returns": "Result<(), ContractError>"
+    },
+    {
+      "name": "get_config",
+      "doc": "",
+      "parameters": [],
+      "returns": "Result<Config, ContractError>"
+    },
+    {
+      "name": "get_contract_stats",
+      "doc": "Access: Anyone",
+      "parameters": [],
+      "returns": "ContractStats"
+    },
+    {
+      "name": "get_invoice",
+      "doc": "Returns the invoice with the given `invoice_id`.  This is a read-only view method that returns the full `Invoice` struct, including submitter, payer, LP, token, amount, discount rate, due date, status, and funding state.  # Errors  Returns `ContractError::InvoiceNotFound` if the invoice does not exist. Access: Anyone",
+      "parameters": [
+        {
+          "name": "invoice_id",
+          "type": "u64"
+        }
+      ],
+      "returns": "Result<Invoice, ContractError>"
+    },
+    {
+      "name": "get_invoice_count",
+      "doc": "Return the total number of invoices, or the count of invoices currently in a specific state. Access: Anyone",
+      "parameters": [
+        {
+          "name": "state",
+          "type": "Option<InvoiceStatus>"
+        }
+      ],
+      "returns": "u64"
+    },
+    {
+      "name": "get_invoice_nft_metadata",
+      "doc": "Get the metadata of an invoice NFT  Returns the NFT metadata including invoice details and current owner.  # Arguments * `invoice_id` - The invoice ID whose NFT metadata to retrieve  # Errors Returns `ContractError::InvoiceNftNotFound` if no NFT exists for this invoice.  Access: Anyone",
+      "parameters": [
+        {
+          "name": "invoice_id",
+          "type": "u64"
+        }
+      ],
+      "returns": "Result<InvoiceNftMetadata, ContractError>"
+    },
+    {
+      "name": "get_invoice_nft_owner",
+      "doc": "Get the current owner of an invoice NFT  Returns the address that currently owns the NFT for this invoice.  # Arguments * `invoice_id` - The invoice ID whose NFT owner to retrieve  # Returns Option containing the owner address if the NFT exists, None otherwise.  Access: Anyone",
+      "parameters": [
+        {
+          "name": "invoice_id",
+          "type": "u64"
+        }
+      ],
+      "returns": "Option<Address>"
+    },
+    {
+      "name": "get_lp_portfolio_stats",
+      "doc": "Return the LP yield analytics snapshot for `lp`.  All fields are maintained incrementally in persistent storage and are O(1) to read, making this ideal for LP dashboards that need to avoid paginating through every invoice.  # Fields - `total_funded`   — cumulative capital deployed - `total_earned`   — cumulative yield received - `active_positions` — invoices currently in `Funded` state - `total_positions`  — all-time funded invoice count - `avg_yield_bps`  — running average discount rate in basis points  Access: Anyone",
+      "parameters": [
+        {
+          "name": "lp",
+          "type": "Address"
+        }
+      ],
+      "returns": "LPStats"
+    },
+    {
+      "name": "get_max_oracle_age",
+      "doc": "Return the configured maximum oracle data age in ledgers. Access: Anyone",
+      "parameters": [],
+      "returns": "u64"
+    },
+    {
+      "name": "get_price_oracle",
+      "doc": "Access: Anyone",
+      "parameters": [],
+      "returns": "Option<Address>"
+    },
+    {
+      "name": "get_referral_stats",
+      "doc": "Access: Anyone",
+      "parameters": [
+        {
+          "name": "code",
+          "type": "BytesN<32>"
+        }
+      ],
+      "returns": "u64"
+    },
+    {
+      "name": "get_reputation",
+      "doc": "Read an address's detailed reputation profile. Unknown addresses return a zeroed profile rather than panicking. Access: Anyone",
+      "parameters": [
+        {
+          "name": "address",
+          "type": "Address"
+        }
+      ],
+      "returns": "ReputationProfile"
+    },
+    {
+      "name": "get_top_payers",
+      "doc": "Return up to `limit` payers with the highest reputation scores. Reads from the maintained top-payers heap — no full-list sort required. Access: Anyone",
+      "parameters": [
+        {
+          "name": "limit",
+          "type": "u32"
+        }
+      ],
+      "returns": "Vec<TopPayerEntry>"
+    },
+    {
+      "name": "initialize",
+      "doc": "Access: Anyone",
+      "parameters": [
+        {
+          "name": "admin",
+          "type": "Address"
+        },
+        {
+          "name": "usdc_token",
+          "type": "Address"
+        },
+        {
+          "name": "eurc_token",
+          "type": "Address"
+        },
+        {
+          "name": "xlm_token",
+          "type": "Address"
+        }
+      ],
+      "returns": "Result<(), ContractError>"
+    },
+    {
+      "name": "initialize_multisig_admin",
+      "doc": "Initialize multi-signature admin functionality.  Enables multi-sig approval for sensitive operations. Once enabled, certain admin actions require approval from multiple authorized signers.  # Arguments - `env`: The Soroban environment - `signers`: Vec of addresses authorized to participate in multi-sig - `threshold`: Number of signatures required to execute (must be <= signers.len())  # Returns - `Ok(())` if multi-sig admin was successfully initialized - `Err(ContractError::InvalidMultisigConfig)` if threshold > signers.len() - `Err(ContractError::Unauthorized)` if called by non-admin  Access: Admin only",
+      "parameters": [
+        {
+          "name": "signers",
+          "type": "Vec<Address>"
+        },
+        {
+          "name": "threshold",
+          "type": "u32"
+        }
+      ],
+      "returns": "Result<(), ContractError>"
+    },
+    {
+      "name": "invoice_nft_exists",
+      "doc": "Check if an invoice NFT exists  # Arguments * `invoice_id` - The invoice ID to check  # Returns true if the NFT exists, false otherwise.  Access: Anyone",
+      "parameters": [
+        {
+          "name": "invoice_id",
+          "type": "u64"
+        }
+      ],
+      "returns": "bool"
+    },
+    {
+      "name": "join_fund_queue",
+      "doc": "Register an LP's intent to fund an invoice. The LP's current reputation score is snapshotted for ordering. Access: LP only",
+      "parameters": [
+        {
+          "name": "lp",
+          "type": "Address"
+        },
+        {
+          "name": "invoice_id",
+          "type": "u64"
+        }
+      ],
+      "returns": "Result<(), ContractError>"
+    },
+    {
+      "name": "list_invoices_by_lp",
+      "doc": "Access: Anyone",
+      "parameters": [
+        {
+          "name": "lp",
+          "type": "Address"
+        },
+        {
+          "name": "page",
+          "type": "u32"
+        },
+        {
+          "name": "page_size",
+          "type": "u32"
+        }
+      ],
+      "returns": "Vec<Invoice>"
+    },
+    {
+      "name": "list_invoices_by_submitter",
+      "doc": "Access: Anyone",
+      "parameters": [
+        {
+          "name": "submitter",
+          "type": "Address"
+        },
+        {
+          "name": "page",
+          "type": "u32"
+        },
+        {
+          "name": "page_size",
+          "type": "u32"
+        }
+      ],
+      "returns": "Vec<Invoice>"
+    },
+    {
+      "name": "lp_score",
+      "doc": "Access: Anyone",
+      "parameters": [
+        {
+          "name": "lp",
+          "type": "Address"
+        }
+      ],
+      "returns": "u32"
+    },
+    {
+      "name": "mark_paid",
+      "doc": "Access: Payer only",
+      "parameters": [
+        {
+          "name": "invoice_id",
+          "type": "u64"
+        },
+        {
+          "name": "amount",
+          "type": "i128"
+        }
+      ],
+      "returns": "Result<(), ContractError>"
+    },
+    {
+      "name": "min_payer_reputation",
+      "doc": "Current minimum payer reputation required to fund an invoice (0 = off). Access: Anyone",
+      "parameters": [],
+      "returns": "u32"
+    },
+    {
+      "name": "pause",
+      "doc": "Access: Admin only",
+      "parameters": [],
+      "returns": "Result<(), ContractError>"
+    },
+    {
+      "name": "payer_score",
+      "doc": "Access: Anyone",
+      "parameters": [
+        {
+          "name": "payer",
+          "type": "Address"
+        }
+      ],
+      "returns": "u32"
+    },
+    {
+      "name": "propose_pause",
+      "doc": "Propose a pause action.  Creates a new proposal to pause the contract. Must be called by an authorized signer if multi-sig is enabled.  # Arguments - `env`: The Soroban environment - `proposer`: The signer proposing the pause  # Returns - `Ok(proposal_id)` if proposal was created successfully - `Err(ContractError::NotAuthorizedSigner)` if proposer is not authorized  Access: Multi-sig authorized signer",
+      "parameters": [
+        {
+          "name": "proposer",
+          "type": "Address"
+        }
+      ],
+      "returns": "Result<u64, ContractError>"
+    },
+    {
+      "name": "propose_unpause",
+      "doc": "Propose an unpause action.  Creates a new proposal to unpause the contract. Must be called by an authorized signer if multi-sig is enabled.  # Arguments - `env`: The Soroban environment - `proposer`: The signer proposing the unpause  # Returns - `Ok(proposal_id)` if proposal was created successfully - `Err(ContractError::NotAuthorizedSigner)` if proposer is not authorized  Access: Multi-sig authorized signer",
+      "parameters": [
+        {
+          "name": "proposer",
+          "type": "Address"
+        }
+      ],
+      "returns": "Result<u64, ContractError>"
+    },
+    {
+      "name": "remove_token",
+      "doc": "Access: Admin only",
+      "parameters": [
+        {
+          "name": "token",
+          "type": "Address"
+        }
+      ],
+      "returns": "Result<(), ContractError>"
+    },
+    {
+      "name": "resolve_appeal",
+      "doc": "Resolve a pending appeal (admin / governance only).  * `upheld=true`  → reverse the default, restore pre-default score, status → Defaulted (reversed).   In practice the status transitions back to Defaulted with score restored so the LP   can still collect principal they were already refunded. The key effect is reputation repair. * `upheld=false` → reject the appeal; invoice remains Defaulted (status reverts from Appealed). Access: Admin only",
+      "parameters": [
+        {
+          "name": "invoice_id",
+          "type": "u64"
+        },
+        {
+          "name": "upheld",
+          "type": "bool"
+        }
+      ],
+      "returns": "Result<(), ContractError>"
+    },
+    {
+      "name": "resolve_dispute",
+      "doc": "Resolve a dispute (admin / governance only).  * `resolution_hash` – Optional hash of resolution details * `resolution`      – Ruling: 1 = Upheld (Payer right), 2 = Rejected (Freelancer right) Access: Admin only",
+      "parameters": [
+        {
+          "name": "invoice_id",
+          "type": "u64"
+        },
+        {
+          "name": "resolution_hash",
+          "type": "BytesN<32>"
+        },
+        {
+          "name": "resolution",
+          "type": "u32"
+        }
+      ],
+      "returns": "Result<(), ContractError>"
+    },
+    {
+      "name": "resolve_fund_queue",
+      "doc": "Select the highest-reputation LP from the queue as the approved funder. Returns the winning LP address. Can be called by anyone once at least one LP has joined the queue. Access: Anyone",
+      "parameters": [
+        {
+          "name": "invoice_id",
+          "type": "u64"
+        }
+      ],
+      "returns": "Result<Address, ContractError>"
+    },
+    {
+      "name": "set_admin",
+      "doc": "Access: Admin only",
+      "parameters": [
+        {
+          "name": "new_admin",
+          "type": "Address"
+        }
+      ],
+      "returns": "Result<(), ContractError>"
+    },
+    {
+      "name": "set_distribution_contract",
+      "doc": "Access: Admin only",
+      "parameters": [
+        {
+          "name": "distribution_contract",
+          "type": "Address"
+        }
+      ],
+      "returns": "Result<(), ContractError>"
+    },
+    {
+      "name": "set_max_oracle_age",
+      "doc": "Update the maximum oracle data age in ledgers. Admin / governance only.  Setting this to 0 disables the freshness check entirely (not recommended for production — stale data is as dangerous as no oracle). Access: Admin only",
+      "parameters": [
+        {
+          "name": "max_age_ledgers",
+          "type": "u64"
+        }
+      ],
+      "returns": "Result<(), ContractError>"
+    },
+    {
+      "name": "set_min_payer_reputation",
+      "doc": "Update the minimum payer reputation threshold. Access: Admin only",
+      "parameters": [
+        {
+          "name": "value",
+          "type": "u32"
+        }
+      ],
+      "returns": "Result<(), ContractError>"
+    },
+    {
+      "name": "set_price_oracle",
+      "doc": "Access: Admin only",
+      "parameters": [
+        {
+          "name": "oracle",
+          "type": "Address"
+        }
+      ],
+      "returns": "Result<(), ContractError>"
+    },
+    {
+      "name": "set_treasury_address",
+      "doc": "Access: Admin only",
+      "parameters": [
+        {
+          "name": "treasury",
+          "type": "Address"
+        }
+      ],
+      "returns": "Result<(), ContractError>"
+    },
+    {
+      "name": "sign_proposal",
+      "doc": "Sign a proposal.  Adds the signer's signature to a proposal. Once the signature threshold is reached, the proposal becomes executable.  # Arguments - `env`: The Soroban environment - `signer`: The address signing the proposal - `proposal_id`: The ID of the proposal to sign  # Returns - `Ok(())` if signature was added successfully - `Err(ContractError::NotAuthorizedSigner)` if signer is not authorized - `Err(ContractError::AlreadySigned)` if signer has already signed this proposal - `Err(ContractError::ProposalNotFound)` if proposal doesn't exist  Access: Multi-sig authorized signer",
+      "parameters": [
+        {
+          "name": "signer",
+          "type": "Address"
+        },
+        {
+          "name": "proposal_id",
+          "type": "u64"
+        }
+      ],
+      "returns": "Result<(), ContractError>"
+    },
+    {
+      "name": "submit_invoice",
+      "doc": "Access: Submitter only",
+      "parameters": [
+        {
+          "name": "freelancer",
+          "type": "Address"
+        },
+        {
+          "name": "payer",
+          "type": "Address"
+        },
+        {
+          "name": "amount",
+          "type": "i128"
+        },
+        {
+          "name": "due_date",
+          "type": "u64"
+        },
+        {
+          "name": "discount_rate",
+          "type": "u32"
+        },
+        {
+          "name": "token",
+          "type": "Address"
+        },
+        {
+          "name": "referral_code",
+          "type": "Option<BytesN<32>>"
+        },
+        {
+          "name": "allowed_lps",
+          "type": "Option<Vec<Address>>"
+        }
+      ],
+      "returns": "Result<u64, ContractError>"
+    },
+    {
+      "name": "submit_invoice_auction",
+      "doc": "Access: Submitter only  Creates an invoice with Dutch auction funding. The rate starts high and decreases linearly over time until the first LP accepts.",
+      "parameters": [
+        {
+          "name": "freelancer",
+          "type": "Address"
+        },
+        {
+          "name": "payer",
+          "type": "Address"
+        },
+        {
+          "name": "amount",
+          "type": "i128"
+        },
+        {
+          "name": "due_date",
+          "type": "u64"
+        },
+        {
+          "name": "start_rate",
+          "type": "u32"
+        },
+        {
+          "name": "// starting rate in basis points\n        min_rate",
+          "type": "u32"
+        },
+        {
+          "name": "// minimum rate in basis points\n        rate_decay_per_hour",
+          "type": "u32"
+        },
+        {
+          "name": "// decay in basis points per hour\n        token",
+          "type": "Address"
+        },
+        {
+          "name": "referral_code",
+          "type": "Option<BytesN<32>>"
+        }
+      ],
+      "returns": "Result<u64, ContractError>"
+    },
+    {
+      "name": "submit_invoices_batch",
+      "doc": "Access: Submitter only",
+      "parameters": [
+        {
+          "name": "invoices",
+          "type": "Vec<InvoiceParams>"
+        }
+      ],
+      "returns": "Result<Vec<u64>, ContractError>"
+    },
+    {
+      "name": "suggested_discount_rate",
+      "doc": "Access: Anyone",
+      "parameters": [
+        {
+          "name": "payer",
+          "type": "Address"
+        }
+      ],
+      "returns": "u32"
+    },
+    {
+      "name": "transfer_invoice",
+      "doc": "Access: Submitter only",
+      "parameters": [
+        {
+          "name": "invoice_id",
+          "type": "u64"
+        },
+        {
+          "name": "new_freelancer",
+          "type": "Address"
+        }
+      ],
+      "returns": "Result<(), ContractError>"
+    },
+    {
+      "name": "transfer_lp_position",
+      "doc": "Access: Current LP only",
+      "parameters": [
+        {
+          "name": "invoice_id",
+          "type": "u64"
+        },
+        {
+          "name": "new_lp",
+          "type": "Address"
+        }
+      ],
+      "returns": "Result<(), ContractError>"
+    },
+    {
+      "name": "unpause",
+      "doc": "Access: Admin only",
+      "parameters": [],
+      "returns": "Result<(), ContractError>"
+    },
+    {
+      "name": "update_config",
+      "doc": "",
+      "parameters": [
+        {
+          "name": "caller",
+          "type": "Address"
+        },
+        {
+          "name": "high_rep_threshold",
+          "type": "u32"
+        },
+        {
+          "name": "bonus_bps",
+          "type": "u32"
+        },
+        {
+          "name": "min_discount_rate_bps",
+          "type": "u32"
+        },
+        {
+          "name": "decay_rate_bps",
+          "type": "u32"
+        },
+        {
+          "name": "decay_period_ledgers",
+          "type": "u64"
+        },
+        {
+          "name": "dispute_timeout_ledgers",
+          "type": "u64"
+        },
+        {
+          "name": "xlm_sac_address",
+          "type": "Address"
+        },
+        {
+          "name": "usdc_sac_address",
+          "type": "Address"
+        },
+        {
+          "name": "eurc_sac_address",
+          "type": "Address"
+        }
+      ],
+      "returns": "Result<(), ContractError>"
+    },
+    {
+      "name": "update_fee_rate",
+      "doc": "Access: Admin only",
+      "parameters": [
+        {
+          "name": "rate",
+          "type": "u32"
+        }
+      ],
+      "returns": "Result<(), ContractError>"
+    },
+    {
+      "name": "update_invoice",
+      "doc": "Access: Submitter only",
+      "parameters": [
+        {
+          "name": "freelancer",
+          "type": "Address"
+        },
+        {
+          "name": "invoice_id",
+          "type": "u64"
+        },
+        {
+          "name": "amount",
+          "type": "i128"
+        },
+        {
+          "name": "due_date",
+          "type": "u64"
+        },
+        {
+          "name": "discount_rate",
+          "type": "u32"
+        }
+      ],
+      "returns": "Result<(), ContractError>"
+    },
+    {
+      "name": "update_max_discount",
+      "doc": "Access: Admin only",
+      "parameters": [
+        {
+          "name": "rate",
+          "type": "u32"
+        }
+      ],
+      "returns": "Result<(), ContractError>"
+    },
+    {
+      "name": "update_protocol_fee_bps",
+      "doc": "Access: Admin only",
+      "parameters": [
+        {
+          "name": "bps",
+          "type": "u32"
+        }
+      ],
+      "returns": "Result<(), ContractError>"
+    },
+    {
+      "name": "upgrade",
+      "doc": "Upgrade the contract to a new WASM hash.  Only the admin can trigger an upgrade. This function emits an event but does not directly perform the upgrade—that is done by the network after the contract is authorized to update its code hash via governance.  # Arguments - `env`: The Soroban environment - `new_wasm_hash`: The hash of the new WASM binary to upgrade to (32 bytes)  # Returns - `Ok(())` if the upgrade event was successfully published - `Err(ContractError)` if called by non-admin  # Notes This function: - Requires admin authentication - Emits a ContractUpgraded event for audit trail - Does NOT perform the actual upgrade (handled by Soroban runtime) - Should only be called after off-chain governance approval  Access: Admin only",
+      "parameters": [
+        {
+          "name": "new_wasm_hash",
+          "type": "BytesN<32>"
+        }
+      ],
+      "returns": "Result<(), ContractError>"
+    }
+  ],
+  "errors": [
+    {
+      "name": "InvoiceNotFound",
+      "code": 1
+    },
+    {
+      "name": "AlreadyFunded",
+      "code": 2
+    },
+    {
+      "name": "AlreadyPaid",
+      "code": 3
+    },
+    {
+      "name": "NotFunded",
+      "code": 4
+    },
+    {
+      "name": "Unauthorized",
+      "code": 5
+    },
+    {
+      "name": "InvalidAmount",
+      "code": 6
+    },
+    {
+      "name": "InvalidDiscountRate",
+      "code": 7
+    },
+    {
+      "name": "InvalidDueDate",
+      "code": 8
+    },
+    {
+      "name": "InvoiceDefaulted",
+      "code": 9
+    },
+    {
+      "name": "NothingToClaim",
+      "code": 10
+    },
+    {
+      "name": "NotYetDefaulted",
+      "code": 11
+    },
+    {
+      "name": "OverfundingRejected",
+      "code": 12
+    },
+    {
+      "name": "InvoiceExpired",
+      "code": 13
+    },
+    {
+      "name": "BatchTooLarge",
+      "code": 14
+    },
+    {
+      "name": "AlreadyCancelled",
+      "code": 15
+    },
+    {
+      "name": "AlreadyInitialized",
+      "code": 16
+    },
+    {
+      "name": "AlreadyAppealed",
+      "code": 17
+    },
+    {
+      "name": "AppealWindowClosed",
+      "code": 18
+    },
+    {
+      "name": "NotDefaulted",
+      "code": 19
+    },
+    {
+      "name": "AlreadyInQueue",
+      "code": 20
+    },
+    {
+      "name": "NotApprovedFunder",
+      "code": 21
+    },
+    {
+      "name": "InvoiceAppealed",
+      "code": 22
+    },
+    {
+      "name": "AlreadyDisputed",
+      "code": 23
+    },
+    {
+      "name": "NotDisputed",
+      "code": 24
+    },
+    {
+      "name": "InvoiceDisputed",
+      "code": 25
+    },
+    {
+      "name": "ContractPaused",
+      "code": 26
+    },
+    {
+      "name": "DueDateTooSoon",
+      "code": 27
+    },
+    {
+      "name": "DueDateTooFar",
+      "code": 28
+    },
+    {
+      "name": "SelfInvoice",
+      "code": 29
+    },
+    {
+      "name": "OverpaymentRejected",
+      "code": 30
+    },
+    {
+      "name": "PayerReputationTooLow",
+      "code": 31
+    },
+    {
+      "name": "Reentrancy",
+      "code": 32
+    },
+    {
+      "name": "ArithmeticOverflow",
+      "code": 32
+    },
+    {
+      "name": "FeeOnTransferToken",
+      "code": 33
+    },
+    {
+      "name": "PayerUnverified",
+      "code": 33
+    },
+    {
+      "name": "OracleDataStale",
+      "code": 34
+    },
+    {
+      "name": "InvalidAuctionParams",
+      "code": 35
+    },
+    {
+      "name": "AuctionExpired",
+      "code": 36
+    },
+    {
+      "name": "InvoiceNftAlreadyExists",
+      "code": 35
+    },
+    {
+      "name": "InvoiceNftNotFound",
+      "code": 36
+    },
+    {
+      "name": "InvoiceNftNotOwned",
+      "code": 37
+    },
+    {
+      "name": "LPNotWhitelisted",
+      "code": 38
+    },
+    {
+      "name": "WhitelistTooLarge",
+      "code": 39
+    },
+    {
+      "name": "NotAuthorizedSigner",
+      "code": 40
+    },
+    {
+      "name": "ProposalNotFound",
+      "code": 41
+    },
+    {
+      "name": "AlreadySigned",
+      "code": 42
+    },
+    {
+      "name": "ProposalExpired",
+      "code": 43
+    },
+    {
+      "name": "ThresholdNotReached",
+      "code": 44
+    },
+    {
+      "name": "ProposalAlreadyExecuted",
+      "code": 45
+    },
+    {
+      "name": "InvalidMultisigConfig",
+      "code": 46
+    }
+  ],
+  "events": [
+    {
+      "name": "AdminChanged",
+      "topics": [],
+      "fields": [
+        {
+          "name": "old_admin",
+          "type": "Address"
+        },
+        {
+          "name": "new_admin",
+          "type": "Address"
+        },
+        {
+          "name": "timestamp",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "AppealResolved",
+      "topics": [
+        "invoice_id",
+        "payer"
+      ],
+      "fields": [
+        {
+          "name": "invoice_id",
+          "type": "u64"
+        },
+        {
+          "name": "payer",
+          "type": "Address"
+        },
+        {
+          "name": "upheld",
+          "type": "bool"
+        },
+        {
+          "name": "resolved_at",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "AuctionFunded",
+      "topics": [
+        "invoice_id",
+        "funder"
+      ],
+      "fields": [
+        {
+          "name": "invoice_id",
+          "type": "u64"
+        },
+        {
+          "name": "funder",
+          "type": "Address"
+        },
+        {
+          "name": "freelancer",
+          "type": "Address"
+        },
+        {
+          "name": "payer",
+          "type": "Address"
+        },
+        {
+          "name": "token",
+          "type": "Address"
+        },
+        {
+          "name": "fund_amount",
+          "type": "i128"
+        }
+      ]
+    },
+    {
+      "name": "AuctionStarted",
+      "topics": [
+        "invoice_id",
+        "freelancer"
+      ],
+      "fields": [
+        {
+          "name": "invoice_id",
+          "type": "u64"
+        },
+        {
+          "name": "freelancer",
+          "type": "Address"
+        },
+        {
+          "name": "payer",
+          "type": "Address"
+        },
+        {
+          "name": "token",
+          "type": "Address"
+        },
+        {
+          "name": "amount",
+          "type": "i128"
+        },
+        {
+          "name": "due_date",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "ContractPaused",
+      "topics": [],
+      "fields": [
+        {
+          "name": "timestamp",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "ContractUnpaused",
+      "topics": [],
+      "fields": [
+        {
+          "name": "timestamp",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "ContractUpgraded",
+      "topics": [
+        "admin"
+      ],
+      "fields": [
+        {
+          "name": "admin",
+          "type": "Address"
+        },
+        {
+          "name": "new_wasm_hash",
+          "type": "BytesN<32>"
+        },
+        {
+          "name": "timestamp",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "DefaultAppealed",
+      "topics": [
+        "invoice_id",
+        "payer"
+      ],
+      "fields": [
+        {
+          "name": "invoice_id",
+          "type": "u64"
+        },
+        {
+          "name": "payer",
+          "type": "Address"
+        },
+        {
+          "name": "evidence_hash",
+          "type": "BytesN<32>"
+        },
+        {
+          "name": "appealed_at",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "DisputeResolved",
+      "topics": [
+        "invoice_id"
+      ],
+      "fields": [
+        {
+          "name": "invoice_id",
+          "type": "u64"
+        },
+        {
+          "name": "resolved_at",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "FeesCollected",
+      "topics": [
+        "invoice_id",
+        "treasury"
+      ],
+      "fields": [
+        {
+          "name": "invoice_id",
+          "type": "u64"
+        },
+        {
+          "name": "fee_amount",
+          "type": "i128"
+        },
+        {
+          "name": "treasury",
+          "type": "Address"
+        }
+      ]
+    },
+    {
+      "name": "FundQueueResolved",
+      "topics": [
+        "invoice_id",
+        "approved_lp"
+      ],
+      "fields": [
+        {
+          "name": "invoice_id",
+          "type": "u64"
+        },
+        {
+          "name": "approved_lp",
+          "type": "Address"
+        },
+        {
+          "name": "score",
+          "type": "u32"
+        }
+      ]
+    },
+    {
+      "name": "FundRequested",
+      "topics": [
+        "invoice_id",
+        "lp"
+      ],
+      "fields": [
+        {
+          "name": "invoice_id",
+          "type": "u64"
+        },
+        {
+          "name": "lp",
+          "type": "Address"
+        },
+        {
+          "name": "score",
+          "type": "u32"
+        }
+      ]
+    },
+    {
+      "name": "InvoiceCancelled",
+      "topics": [
+        "invoice_id"
+      ],
+      "fields": [
+        {
+          "name": "invoice_id",
+          "type": "u64"
+        },
+        {
+          "name": "freelancer",
+          "type": "Address"
+        },
+        {
+          "name": "status",
+          "type": "InvoiceStatus"
+        }
+      ]
+    },
+    {
+      "name": "InvoiceDefaulted",
+      "topics": [
+        "invoice_id",
+        "funder"
+      ],
+      "fields": [
+        {
+          "name": "invoice_id",
+          "type": "u64"
+        },
+        {
+          "name": "funder",
+          "type": "Address"
+        },
+        {
+          "name": "freelancer",
+          "type": "Address"
+        },
+        {
+          "name": "payer",
+          "type": "Address"
+        },
+        {
+          "name": "token",
+          "type": "Address"
+        },
+        {
+          "name": "amount",
+          "type": "i128"
+        },
+        {
+          "name": "due_date",
+          "type": "u64"
+        },
+        {
+          "name": "defaulted_at",
+          "type": "u64"
+        },
+        {
+          "name": "discount_amount",
+          "type": "i128"
+        },
+        {
+          "name": "status",
+          "type": "InvoiceStatus"
+        }
+      ]
+    },
+    {
+      "name": "InvoiceDisputed",
+      "topics": [
+        "invoice_id",
+        "payer"
+      ],
+      "fields": [
+        {
+          "name": "invoice_id",
+          "type": "u64"
+        },
+        {
+          "name": "payer",
+          "type": "Address"
+        },
+        {
+          "name": "reason_hash",
+          "type": "BytesN<32>"
+        },
+        {
+          "name": "disputed_at",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "InvoiceExpired",
+      "topics": [
+        "invoice_id"
+      ],
+      "fields": [
+        {
+          "name": "invoice_id",
+          "type": "u64"
+        },
+        {
+          "name": "freelancer",
+          "type": "Address"
+        },
+        {
+          "name": "status",
+          "type": "InvoiceStatus"
+        }
+      ]
+    },
+    {
+      "name": "InvoiceFunded",
+      "topics": [
+        "invoice_id",
+        "funder"
+      ],
+      "fields": [
+        {
+          "name": "invoice_id",
+          "type": "u64"
+        },
+        {
+          "name": "funder",
+          "type": "Address"
+        },
+        {
+          "name": "freelancer",
+          "type": "Address"
+        },
+        {
+          "name": "payer",
+          "type": "Address"
+        },
+        {
+          "name": "token",
+          "type": "Address"
+        },
+        {
+          "name": "fund_amount",
+          "type": "i128"
+        },
+        {
+          "name": "amount_funded",
+          "type": "i128"
+        },
+        {
+          "name": "invoice_amount",
+          "type": "i128"
+        },
+        {
+          "name": "due_date",
+          "type": "u64"
+        },
+        {
+          "name": "discount_rate",
+          "type": "u32"
+        },
+        {
+          "name": "funded_at",
+          "type": "Option<u64>"
+        },
+        {
+          "name": "status",
+          "type": "InvoiceStatus"
+        },
+        {
+          "name": "lp",
+          "type": "Address"
+        },
+        {
+          "name": "effective_yield_bps",
+          "type": "u32"
+        },
+        {
+          "name": "timestamp",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "InvoicePaid",
+      "topics": [
+        "invoice_id",
+        "payer",
+        "lp"
+      ],
+      "fields": [
+        {
+          "name": "invoice_id",
+          "type": "u64"
+        },
+        {
+          "name": "payer",
+          "type": "Address"
+        },
+        {
+          "name": "lp",
+          "type": "Address"
+        },
+        {
+          "name": "freelancer",
+          "type": "Address"
+        },
+        {
+          "name": "token",
+          "type": "Address"
+        },
+        {
+          "name": "amount_paid",
+          "type": "i128"
+        },
+        {
+          "name": "lp_earned",
+          "type": "i128"
+        },
+        {
+          "name": "lp_payout",
+          "type": "i128"
+        },
+        {
+          "name": "settlement_timestamp",
+          "type": "u64"
+        },
+        {
+          "name": "paid_on_time",
+          "type": "bool"
+        },
+        {
+          "name": "status",
+          "type": "InvoiceStatus"
+        }
+      ]
+    },
+    {
+      "name": "InvoicePartiallyPaid",
+      "topics": [
+        "invoice_id",
+        "payer"
+      ],
+      "fields": [
+        {
+          "name": "invoice_id",
+          "type": "u64"
+        },
+        {
+          "name": "payer",
+          "type": "Address"
+        },
+        {
+          "name": "amount_paid_now",
+          "type": "i128"
+        },
+        {
+          "name": "total_amount_paid",
+          "type": "i128"
+        },
+        {
+          "name": "remaining_amount",
+          "type": "i128"
+        }
+      ]
+    },
+    {
+      "name": "InvoiceSubmitted",
+      "topics": [
+        "invoice_id",
+        "freelancer",
+        "payer"
+      ],
+      "fields": [
+        {
+          "name": "invoice_id",
+          "type": "u64"
+        },
+        {
+          "name": "freelancer",
+          "type": "Address"
+        },
+        {
+          "name": "payer",
+          "type": "Address"
+        },
+        {
+          "name": "token",
+          "type": "Address"
+        },
+        {
+          "name": "amount",
+          "type": "i128"
+        },
+        {
+          "name": "due_date",
+          "type": "u64"
+        },
+        {
+          "name": "discount_rate",
+          "type": "u32"
+        },
+        {
+          "name": "referral_code",
+          "type": "Option<BytesN<32>>"
+        },
+        {
+          "name": "status",
+          "type": "InvoiceStatus"
+        },
+        {
+          "name": "timestamp",
+          "type": "u64"
+        },
+        {
+          "name": "allowed_lps",
+          "type": "Option<soroban_sdk::Vec<Address>>"
+        }
+      ]
+    },
+    {
+      "name": "InvoiceTokenChanged",
+      "topics": [
+        "invoice_id"
+      ],
+      "fields": [
+        {
+          "name": "invoice_id",
+          "type": "u64"
+        },
+        {
+          "name": "old_token",
+          "type": "Address"
+        },
+        {
+          "name": "new_token",
+          "type": "Address"
+        }
+      ]
+    },
+    {
+      "name": "InvoiceTransferred",
+      "topics": [
+        "invoice_id"
+      ],
+      "fields": [
+        {
+          "name": "invoice_id",
+          "type": "u64"
+        },
+        {
+          "name": "old_freelancer",
+          "type": "Address"
+        },
+        {
+          "name": "new_freelancer",
+          "type": "Address"
+        },
+        {
+          "name": "status",
+          "type": "InvoiceStatus"
+        }
+      ]
+    },
+    {
+      "name": "InvoiceUpdated",
+      "topics": [
+        "invoice_id",
+        "freelancer",
+        "payer"
+      ],
+      "fields": [
+        {
+          "name": "invoice_id",
+          "type": "u64"
+        },
+        {
+          "name": "freelancer",
+          "type": "Address"
+        },
+        {
+          "name": "payer",
+          "type": "Address"
+        },
+        {
+          "name": "token",
+          "type": "Address"
+        },
+        {
+          "name": "amount",
+          "type": "i128"
+        },
+        {
+          "name": "due_date",
+          "type": "u64"
+        },
+        {
+          "name": "discount_rate",
+          "type": "u32"
+        },
+        {
+          "name": "status",
+          "type": "InvoiceStatus"
+        }
+      ]
+    },
+    {
+      "name": "LPPositionTransferred",
+      "topics": [
+        "invoice_id"
+      ],
+      "fields": [
+        {
+          "name": "invoice_id",
+          "type": "u64"
+        },
+        {
+          "name": "old_lp",
+          "type": "Address"
+        },
+        {
+          "name": "new_lp",
+          "type": "Address"
+        },
+        {
+          "name": "status",
+          "type": "InvoiceStatus"
+        }
+      ]
+    },
+    {
+      "name": "ParameterUpdated",
+      "topics": [
+        "param_name",
+        "updated_by"
+      ],
+      "fields": [
+        {
+          "name": "param_name",
+          "type": "Symbol"
+        },
+        {
+          "name": "old_value",
+          "type": "i128"
+        },
+        {
+          "name": "new_value",
+          "type": "i128"
+        },
+        {
+          "name": "updated_by",
+          "type": "Address"
+        }
+      ]
+    },
+    {
+      "name": "ReputationUpdated",
+      "topics": [
+        "address"
+      ],
+      "fields": [
+        {
+          "name": "address",
+          "type": "Address"
+        },
+        {
+          "name": "old_score",
+          "type": "u32"
+        },
+        {
+          "name": "new_score",
+          "type": "u32"
+        },
+        {
+          "name": "invoices_submitted",
+          "type": "u32"
+        },
+        {
+          "name": "invoices_paid",
+          "type": "u32"
+        },
+        {
+          "name": "invoices_defaulted",
+          "type": "u32"
+        }
+      ]
+    },
+    {
+      "name": "TokenAdded",
+      "topics": [
+        "token"
+      ],
+      "fields": [
+        {
+          "name": "token",
+          "type": "Address"
+        }
+      ]
+    },
+    {
+      "name": "TokenRemoved",
+      "topics": [
+        "token"
+      ],
+      "fields": [
+        {
+          "name": "token",
+          "type": "Address"
+        }
+      ]
+    }
+  ]
+}

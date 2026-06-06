@@ -2,12 +2,17 @@ name: Deploy to Testnet
 
 on:
   push:
-    branches: [ main, master ]
-  workflow_dispatch:
+    branches: [ main ]
+
+permissions:
+  contents: write
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
+    outputs:
+      deployment_summary: ${{ steps.summary.outputs.deployment_summary }}
     steps:
       - uses: actions/checkout@v4
 
@@ -27,48 +32,32 @@ jobs:
             ~/.cargo/git
           key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Build contracts
-        run: cargo build --target wasm32v1-none --release
-
       - name: Install Stellar CLI
-        run: |
-          cargo install --locked stellar-cli --features opt
+        run: cargo install --locked stellar-cli --features opt
 
-      - name: Configure Testnet
-        run: |
-          stellar network add --global testnet \
-            --rpc-url https://soroban-testnet.stellar.org \
-            --network-passphrase "Test SDF Network ; September 2015"
-
-      - name: Deploy Contract
+      - name: Deploy contracts to testnet
         id: deploy
-        run: |
-          # Create and fund a deployer account
-          stellar keys generate --global deployer
-          DEPLOYER_ADDR=$(stellar keys address deployer)
-          curl -s "https://friendbot.stellar.org?addr=${DEPLOYER_ADDR}"
-          
-          # Deploy invoice_liquidity contract
-          UPLOAD_OUT=$(stellar contract upload --network testnet --source deployer --wasm target/wasm32v1-none/release/invoice_liquidity.wasm)
-          WASM_HASH=$(echo "$UPLOAD_OUT" | grep -oP 'WASM hash: \K[a-f0-9]+' || echo "$UPLOAD_OUT" | grep -oE '[a-f0-9]{64}')
-          
-          DEPLOY_OUT=$(stellar contract deploy --network testnet --source deployer --wasm-hash "$WASM_HASH")
-          CONTRACT_ID=$(echo "$DEPLOY_OUT" | grep -oP 'Contract ID: \K[A-Z0-9]+' || echo "$DEPLOY_OUT" | grep -oE 'C[A-Z0-9]{55}')
-          
-          echo "CONTRACT_ID=$CONTRACT_ID" >> $GITHUB_ENV
-          echo "Deployed contract ID: $CONTRACT_ID"
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Run post-deployment smoke test
         env:
-          CONTRACT_ID: ${{ env.CONTRACT_ID }}
-          SOROBAN_RPC_URL: https://soroban-testnet.stellar.org
-          NETWORK_PASSPHRASE: "Test SDF Network ; September 2015"
+          STELLAR_TESTNET_DEPLOYER_SECRET: ${{ secrets.STELLAR_TESTNET_DEPLOYER_SECRET }}
+        run: bash scripts/deploy-testnet.sh
+
+      - name: Update README contract IDs
+        run: bash scripts/update-testnet-readme.sh
+
+      - name: Commit README updates
         run: |
-          npm init -y
-          npm install --save-dev typescript ts-node @types/node @stellar/stellar-sdk
-          npx ts-node scripts/smoke-test.ts
+          if git status --porcelain | grep -q "README.md"; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add README.md
+            git commit -m "ci: update testnet contract ids [skip ci]"
+            git push
+          else
+            echo "No README changes to commit."
+          fi
+
+      - name: Emit deployment summary
+        id: summary
+        run: |
+          SUMMARY=$(tr -d '\n' < deploy-summary.json)
+          echo "deployment_summary=${SUMMARY}" >> "$GITHUB_OUTPUT"

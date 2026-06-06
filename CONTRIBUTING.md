@@ -40,6 +40,32 @@ BREAKING CHANGE: fund_invoice has been renamed to fund in the invoice_liquidity 
 ```
 
 
+## 🎨 Formatting
+
+All code must be formatted with `rustfmt` before committing. CI will reject unformatted code.
+
+```bash
+cargo fmt --all
+```
+
+Project-specific settings are in [`rustfmt.toml`](rustfmt.toml) (`max_width = 100`, `edition = "2021"`).
+
+
+## 👥 Code Owners
+
+This repo uses a [CODEOWNERS](.github/CODEOWNERS) file to automatically request reviews from the right team on every PR.
+
+| Path | Owner |
+|------|-------|
+| `contracts/` | `@Keengfk/contracts-team` |
+| `docs/` | `@Keengfk/docs-lead` |
+| `scripts/`, `.github/workflows/` | `@Keengfk/devops` |
+| `SECURITY.md` | `@Keengfk/security-lead` |
+| everything else | `@Keengfk/maintainers` |
+
+CODEOWNER approval is required before merging (enforced via branch protection on `main`). To enable this on a new repo, go to **Settings → Branches → Branch protection rules** and check **Require review from Code Owners**.
+
+
 ## 🧪 Testing
 1. [Environment Setup](#1-environment-setup)
 2. [Building the Contracts](#2-building-the-contracts)
@@ -98,8 +124,14 @@ For a more detailed walkthrough (testnet account setup, troubleshooting) see
 cargo build
 
 # Optimised WASM build (required before deployment)
-cargo build-wasm
-# equivalent to: cargo build --target wasm32v1-none --release
+cargo build --release --target wasm32-unknown-unknown
+
+# Alternative Soroban-specific optimized build
+# `cargo build-wasm` is a workspace alias defined in `.cargo/config.toml`.
+# It builds optimized WASM to the Soroban-specific target:
+# cargo build --target wasm32v1-none --release
+# or use the Makefile shortcut:
+# make soroban-optimize
 ```
 
 WASM output lands in `target/wasm32v1-none/release/*.wasm`.

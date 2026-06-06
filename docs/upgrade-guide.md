@@ -700,6 +700,68 @@ For upgrade-related questions or issues:
 
 ---
 
+## v1 → v2 State Migration (Script) — Issue #114
+
+The v1 → v2 upgrade adds three fields to the persisted `Invoice` schema
+(`submitter_reputation`, `allowed_lps`, `is_auction`). Because Soroban preserves
+raw storage across a WASM-hash swap, existing `Invoice` records must be read and
+re-written with the new fields populated (defaulted) or they will fail to decode
+under v2. The migration is automated and verified by
+[`scripts/migrate-v1-v2.ts`](../scripts/migrate-v1-v2.ts).
+
+### The lossless transform
+
+The single source of truth is the pure `migrateInvoice()` function:
+
+| v2 field | Default applied |
+|----------|-----------------|
+| `submitter_reputation` | the freelancer's current reputation score, else `50` |
+| `allowed_lps` | `null` (invoice stays public) |
+| `is_auction` | `false` |
+
+All v1 fields are carried over byte-for-byte; the migration never drops or
+mutates existing data.
+
+### Modes
+
+```bash
+# Default: in-memory simulation — deterministic, no network, no deps.
+# Proves the transform is lossless across all invoice statuses. Exits 0.
+npx tsx scripts/migrate-v1-v2.ts
+
+# Real testnet run (requires @stellar/stellar-sdk + funded keys):
+npx tsx scripts/migrate-v1-v2.ts --testnet
+```
+
+The `--simulate` path is suitable for CI so a regression in the migration logic
+fails the build before any on-chain run.
+
+### Testnet environment variables (`--testnet`)
+
+| Variable | Purpose |
+|----------|---------|
+| `ADMIN_SECRET` | Secret key of the contract admin (signs `upgrade` + `migrate`). |
+| `SOROBAN_RPC_URL` | RPC endpoint (default `https://soroban-testnet.stellar.org`). |
+| `NETWORK_PASSPHRASE` | Network passphrase (default Testnet). |
+| `V1_WASM` / `V2_WASM` | Paths to the built v1 / v2 WASM artifacts. |
+| `V2_WASM_HASH` | Hash passed to `upgrade(new_wasm_hash)`. |
+
+### On-chain procedure
+
+1. Install + deploy v1 WASM; `initialize` the contract.
+2. Seed sample state: `submit_invoice` across all statuses.
+3. Snapshot v1 state (`get_invoice`, `get_invoice_count`).
+4. Install v2 WASM; call `upgrade(V2_WASM_HASH)`.
+5. Invoke the v2 `migrate` entrypoint to re-write `Invoice` records via
+   `migrateInvoice()`.
+6. Verify: counts match the snapshot, new fields carry their defaults, and v2-only
+   calls (e.g. `get_invoice_count(&Some(status))`) succeed.
+
+> The on-chain `migrate` entrypoint applies exactly the transform validated by
+> `--simulate`; keep the two in lockstep when the schema evolves further.
+
+---
+
 **Document Prepared By:** DevOps & Security Team  
-**Last Updated:** May 2024  
+**Last Updated:** May 2024 (migration script added — Issue #114)  
 **Next Review:** Upon next upgrade

@@ -1,0 +1,15 @@
+# Default: all maintainers review anything not matched below
+*                        @Keengfk/maintainers
+
+# Core smart contracts — contract team required
+contracts/               @Keengfk/contracts-team
+
+# Documentation — docs lead required
+docs/                    @Keengfk/docs-lead
+
+# Scripts and CI — DevOps required
+scripts/                 @Keengfk/devops
+.github/workflows/       @Keengfk/devops
+
+# Security policy — security lead required
+SECURITY.md              @Keengfk/security-lead
