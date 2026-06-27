@@ -12,6 +12,13 @@ export {
   buildApproveTransaction,
   isAllowanceSufficient,
 } from "./utils/allowance.js";
+export {
+  validateGAddress,
+  validateContractId,
+  validateAmount,
+  validateDiscountRate,
+  validateDueDate,
+} from "./utils/validate.js";
 export { KeypairSigner } from "./signers/KeypairSigner.js";
 export { FreighterSigner, ILNError, ILNErrorCode } from "./signers/FreighterSigner.js";
 export { subscribe, parseContractEvent, matchesFilter } from "./events/subscribe.js";

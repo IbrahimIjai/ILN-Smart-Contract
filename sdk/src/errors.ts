@@ -41,6 +41,8 @@ export class ILNError extends Error {
   static OracleDataStale = class extends ILNError { constructor(msg = "Oracle data stale") { super(msg, 35); } };
   static AmountTooSmall = class extends ILNError { constructor(msg = "Amount too small") { super(msg, 36); } };
   static InvoiceNotCancellable = class extends ILNError { constructor(msg = "Invoice not cancellable") { super(msg, 37); } };
+  static InvalidAddress = class extends ILNError { constructor(msg = "Invalid address") { super(msg, 38); } };
+  static InvalidTransfer = class extends ILNError { constructor(msg = "Invalid transfer") { super(msg, 39); } };
   static InsufficientAmount = class extends ILNError { constructor(msg = "Insufficient amount") { super(msg, 999); } };
 
   static fromError(error: any): Error {

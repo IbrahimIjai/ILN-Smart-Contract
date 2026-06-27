@@ -10,6 +10,7 @@ import {
 } from "@stellar/stellar-sdk";
 import type { SubmitInvoiceParams, SubmitInvoiceResult } from "../types/params.js";
 import { ILNError } from "../errors.js";
+import { validateDiscountRate, validateGAddress } from "../utils/validate.js";
 
 /**
  * Submit a new invoice to the contract.
@@ -44,10 +45,8 @@ export async function submitInvoice(
   if (params.amount <= 0n) {
     throw new ILNError.InvalidAmount("Invoice amount must be greater than 0");
   }
-  if (params.discountRate < 1 || params.discountRate > 5000) {
-    throw new ILNError.InvalidDiscountRate("Discount rate must be between 1 and 5000 bps");
-  }
-  
+  validateDiscountRate(params.discountRate);
+
   const dueDateUnix = params.dueDate instanceof Date ? Math.floor(params.dueDate.getTime() / 1000) : params.dueDate;
   const nowUnix = Math.floor(Date.now() / 1000);
   const minDuration = 24 * 60 * 60;
@@ -60,9 +59,7 @@ export async function submitInvoice(
     throw new ILNError.DueDateTooFar("Due date is too far (maximum 365 days)");
   }
   
-  if (!params.payer.startsWith("G") || params.payer.length !== 56) {
-    throw new ILNError("Invalid payer address");
-  }
+  validateGAddress(params.payer);
 
   const contract = new Contract(contractAddress);
   const submitterAddress = sourceAccount.accountId();
