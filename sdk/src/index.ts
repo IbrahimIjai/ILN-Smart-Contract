@@ -36,5 +36,6 @@ export type {
 
 export { getInvoice, listInvoicesBySubmitter, listInvoicesByLP } from "./methods/queries.js";
 export { submitInvoice } from "./methods/submitInvoice.js";
+export { cancelInvoice } from "./methods/cancelInvoice.js";
 export { markPaid } from "./methods/markPaid.js";
 export { ILNError } from "./errors.js";

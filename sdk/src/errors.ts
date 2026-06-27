@@ -40,6 +40,7 @@ export class ILNError extends Error {
   static PayerUnverified = class extends ILNError { constructor(msg = "Payer unverified") { super(msg, 34); } };
   static OracleDataStale = class extends ILNError { constructor(msg = "Oracle data stale") { super(msg, 35); } };
   static AmountTooSmall = class extends ILNError { constructor(msg = "Amount too small") { super(msg, 36); } };
+  static InvoiceNotCancellable = class extends ILNError { constructor(msg = "Invoice not cancellable") { super(msg, 37); } };
   static InsufficientAmount = class extends ILNError { constructor(msg = "Insufficient amount") { super(msg, 999); } };
 
   static fromError(error: any): Error {
@@ -84,6 +85,7 @@ export class ILNError extends Error {
         case 34: return new ILNError.PayerUnverified();
         case 35: return new ILNError.OracleDataStale();
         case 36: return new ILNError.AmountTooSmall();
+        case 37: return new ILNError.InvoiceNotCancellable();
       }
     }
     return new Error(errorString);
