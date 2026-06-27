@@ -46,4 +46,20 @@ export { submitInvoice } from "./methods/submitInvoice.js";
 export { transferLPPosition } from "./methods/transferLPPosition.js";
 export { cancelInvoice } from "./methods/cancelInvoice.js";
 export { markPaid } from "./methods/markPaid.js";
+export {
+  createProposal,
+  castVote,
+  executeProposal,
+  getProposal,
+  listProposals,
+} from "./methods/governance.js";
+export {
+  ProposalAction,
+  ProposalStatus,
+} from "./types/governance.js";
+export type {
+  Proposal,
+  ProposalFilter,
+  CreateProposalResult,
+} from "./types/governance.js";
 export { ILNError } from "./errors.js";
